@@ -1,0 +1,135 @@
+/* ===========================================
+   OXMAN IT GAME OPTIMIZER
+   DARK PREMIUM THEME
+=========================================== */
+
+.root{
+
+    -fx-background-color: #181818;
+
+}
+
+/* -------------------------------------------
+                LABELS
+--------------------------------------------*/
+
+.label{
+
+    -fx-font-family: "Segoe UI";
+    -fx-text-fill: white;
+
+}
+
+.title{
+
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFD700;
+
+}
+
+.title2{
+
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+
+}
+
+.subtitle{
+
+    -fx-font-size: 13px;
+    -fx-text-fill: #AAAAAA;
+
+}
+
+.section{
+
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+
+}
+
+.separator{
+
+    -fx-text-fill: #555555;
+
+}
+
+.status{
+
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #00E676;
+
+}
+
+/* -------------------------------------------
+            PROGRESS BAR
+--------------------------------------------*/
+
+.progress-bar{
+
+    -fx-min-height: 22px;
+    -fx-pref-height: 22px;
+    -fx-max-height: 22px;
+
+}
+
+.progress-bar .track{
+
+    -fx-background-color: #2E2E2E;
+
+    -fx-background-radius: 12;
+
+    -fx-border-radius: 12;
+
+}
+
+.progress-bar .bar{
+
+    -fx-background-color:
+        linear-gradient(to right,#8E6B00,#FFD700);
+
+    -fx-background-radius: 12;
+
+}
+
+/* -------------------------------------------
+                BUTTON
+--------------------------------------------*/
+
+.button{
+
+    -fx-background-color: #303030;
+
+    -fx-text-fill: white;
+
+    -fx-font-size: 16px;
+
+    -fx-font-weight: bold;
+
+    -fx-background-radius: 10;
+
+    -fx-cursor: hand;
+
+}
+
+.button:hover{
+
+    -fx-background-color: #4A4A4A;
+
+}
+
+/* -------------------------------------------
+            SCROLL / FOCUS
+--------------------------------------------*/
+
+.button:focused{
+
+    -fx-focus-color: transparent;
+
+    -fx-faint-focus-color: transparent;
+
+}

@@ -1,16 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox alignment="CENTER"
-      spacing="20"
-      xmlns="http://javafx.com/javafx"
-      xmlns:fx="http://javafx.com/fxml">
+<VBox
+        xmlns="http://javafx.com/javafx"
+        xmlns:fx="http://javafx.com/fxml"
+        fx:controller="cl.oxman.oxmangameoptimizer.ui.MainController"
+        alignment="TOP_CENTER"
+        spacing="12">
 
-    <Label text="🚀 OXMAN GAME OPTIMIZER"/>
+    <padding>
+        <Insets top="25" right="30" bottom="25" left="30"/>
+    </padding>
 
-    <Button text="BOOST"/>
+    <Label
+            text="OXMAN IT"
+            styleClass="title"/>
+
+    <Label
+            text="GAME OPTIMIZER"
+            styleClass="title2"/>
+
+    <Label
+            text="Performance Dashboard"
+            styleClass="subtitle"/>
+
+    <Label
+            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            styleClass="separator"/>
+
+    <Label
+            text="🖥 CPU"
+            styleClass="section"/>
+
+    <ProgressBar
+            fx:id="cpuBar"
+            prefWidth="340"/>
+
+    <Label
+            fx:id="cpuLabel"
+            text="CPU: 0%"/>
+
+    <Label
+            text="💾 RAM"
+            styleClass="section"/>
+
+    <ProgressBar
+            fx:id="ramBar"
+            prefWidth="340"/>
+
+    <Label
+            fx:id="ramLabel"
+            text="RAM: 0%"/>
+
+    <Label
+            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            styleClass="separator"/>
+
+    <Label
+            fx:id="statusLabel"
+            text="🟢 Sistema Óptimo"
+            styleClass="status"/>
+
+    <Button
+            text="🚀 BOOST FPS"
+            prefWidth="250"
+            prefHeight="48"
+            onAction="#boostFPS"/>
 
 </VBox>
