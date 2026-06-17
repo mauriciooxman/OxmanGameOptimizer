@@ -5,6 +5,7 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.TextArea?>
 
 <VBox
         xmlns="http://javafx.com/javafx"
@@ -72,4 +73,15 @@
             prefHeight="48"
             onAction="#boostFPS"/>
 
+    <Label
+            text="📜 Registro de Optimización"
+            styleClass="section"/>
+
+    <TextArea
+            fx:id="logArea"
+            prefWidth="340"
+            prefHeight="170"
+            editable="false"
+            wrapText="true"
+            styleClass="log-area"/>
 </VBox>

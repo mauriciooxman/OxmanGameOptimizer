@@ -133,3 +133,36 @@
     -fx-faint-focus-color: transparent;
 
 }
+/* ==========================
+   Área de registros
+========================== */
+
+.log-area {
+
+    -fx-control-inner-background: #111111;
+
+    -fx-background-color: #111111;
+
+    -fx-text-fill: white;
+
+    -fx-highlight-fill: #C8A44D;
+
+    -fx-highlight-text-fill: black;
+
+    -fx-border-color: #C8A44D;
+
+    -fx-border-radius: 8;
+
+    -fx-background-radius: 8;
+
+    -fx-font-size: 13px;
+
+    -fx-font-family: "Consolas";
+
+}
+
+.log-area .content {
+
+    -fx-background-color: #111111;
+
+}

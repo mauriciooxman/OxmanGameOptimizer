@@ -2,21 +2,25 @@ package cl.oxman.oxmangameoptimizer.optimizer;
 
 import java.io.IOException;
 
-public class NetworkOptimizer {
+public class PowerOptimizer {
 
-    public static void flushDNS() {
+    public static void enableHighPerformance() {
 
         try {
 
             ProcessBuilder pb = new ProcessBuilder(
+
                     "cmd",
                     "/c",
-                    "ipconfig /flushdns"
+                    "powercfg /setactive SCHEME_MIN"
+
             );
 
-            pb.start().waitFor();
+            pb.start();
 
-        } catch (IOException | InterruptedException e) {
+        }
+
+        catch (IOException e) {
 
             e.printStackTrace();
 

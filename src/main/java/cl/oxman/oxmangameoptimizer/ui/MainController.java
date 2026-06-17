@@ -9,11 +9,11 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.TextArea;
 import javafx.util.Duration;
 
 public class MainController {
 
-    // Evita que el Timeline sobrescriba el estado mientras se ejecuta Boost
     private boolean boosting = false;
 
     @FXML
@@ -32,9 +32,15 @@ public class MainController {
     private ProgressBar ramBar;
 
     @FXML
+    private TextArea logArea;
+
+    @FXML
     public void initialize() {
 
-        // Información del hardware (solo una vez)
+        // Conectar el sistema de logs
+        LogManager.setLogArea(logArea);
+
+        // Información del hardware
         System.out.println("CPU: " + HardwareMonitor.getCpuName());
         System.out.printf("RAM Total: %.2f GB%n", HardwareMonitor.getTotalRamGB());
 
@@ -42,9 +48,9 @@ public class MainController {
 
                 new KeyFrame(Duration.millis(500), event -> {
 
-                    //-----------------------
+                    //-------------------
                     // CPU
-                    //-----------------------
+                    //-------------------
 
                     double cpu = HardwareMonitor.getCpuUsage();
 
@@ -54,26 +60,28 @@ public class MainController {
 
                     cpuBar.setProgress(cpu / 100.0);
 
-                    //-----------------------
+                    //-------------------
                     // RAM
-                    //-----------------------
+                    //-------------------
 
                     double ram = HardwareMonitor.getRamUsage();
 
                     ramLabel.setText(
+
                             String.format(
                                     "RAM %.1f%% (%.1f / %.1f GB)",
                                     ram,
                                     HardwareMonitor.getUsedRamGB(),
                                     HardwareMonitor.getTotalRamGB()
                             )
+
                     );
 
                     ramBar.setProgress(ram / 100.0);
 
-                    //-----------------------
-                    // Estado del sistema
-                    //-----------------------
+                    //-------------------
+                    // Estado
+                    //-------------------
 
                     if (!boosting) {
 
@@ -100,6 +108,7 @@ public class MainController {
         );
 
         timeline.setCycleCount(Animation.INDEFINITE);
+
         timeline.play();
 
     }
@@ -109,23 +118,23 @@ public class MainController {
 
         boosting = true;
 
-        statusLabel.setText("🚀 Aplicando optimizaciones...");
+        statusLabel.setText("🚀 Optimizando...");
 
-        BoostOptimizer.applyBoost();
+        logArea.clear();
 
-        // Simulación: por ahora dejamos el mensaje unos segundos
-        Timeline restoreTimeline = new Timeline(
+        new Thread(() -> {
 
-                new KeyFrame(Duration.seconds(3), e -> {
+            BoostOptimizer.applyBoost();
 
-                    boosting = false;
+            javafx.application.Platform.runLater(() -> {
 
-                })
+                statusLabel.setText("🚀 Sistema optimizado");
 
-        );
+                boosting = false;
 
-        restoreTimeline.play();
+            });
+
+        }).start();
 
     }
-
 }
