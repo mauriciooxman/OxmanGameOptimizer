@@ -23,10 +23,17 @@ public class BoostOptimizer {
             Thread.sleep(700);
             LogManager.addLog("✔ Caché DNS limpiada");
 
-            LogManager.addLog("🗑 Liberando memoria...");
-            System.gc();
-            Thread.sleep(700);
-            LogManager.addLog("✔ Memoria liberada");
+            CpuOptimizer.optimize();
+            Thread.sleep(500);
+
+            RamOptimizer.optimize();
+            Thread.sleep(500);
+
+            ServiceOptimizer.optimize();
+            Thread.sleep(500);
+
+            WindowsOptimizer.optimize();
+            Thread.sleep(500);
 
             LogManager.addLog("");
             LogManager.addLog("🎉 Optimización completada.");

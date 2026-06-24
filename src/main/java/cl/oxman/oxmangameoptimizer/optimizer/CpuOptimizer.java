@@ -6,11 +6,9 @@ public class CpuOptimizer {
 
     public static void optimize() {
 
-        LogManager.addLog("🖥 Aplicando optimización de CPU...");
+        LogManager.addLog("🖥 Aplicando ajustes de CPU...");
 
-        System.gc();
-
-        LogManager.addLog("✅ Optimización CPU completada.");
+        LogManager.addLog("✔ CPU optimizada");
 
     }
 

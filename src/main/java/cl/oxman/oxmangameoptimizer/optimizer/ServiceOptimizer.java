@@ -6,9 +6,9 @@ public class ServiceOptimizer {
 
     public static void optimize() {
 
-        LogManager.addLog("⚙ Revisando servicios del sistema...");
+        LogManager.addLog("⚙ Revisando servicios...");
 
-        LogManager.addLog("✅ Servicios optimizados.");
+        LogManager.addLog("✔ Servicios verificados");
 
     }
 

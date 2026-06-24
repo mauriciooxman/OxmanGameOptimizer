@@ -10,7 +10,7 @@ public class RamOptimizer {
 
         System.gc();
 
-        LogManager.addLog("✅ Memoria optimizada.");
+        LogManager.addLog("✔ Memoria optimizada");
 
     }
 

@@ -2,13 +2,31 @@ package cl.oxman.oxmangameoptimizer.optimizer;
 
 import cl.oxman.oxmangameoptimizer.ui.LogManager;
 
+import java.io.IOException;
+
 public class WindowsOptimizer {
 
     public static void optimize() {
 
-        LogManager.addLog("🪟 Aplicando optimizaciones de Windows...");
+        try {
 
-        LogManager.addLog("✅ Windows optimizado.");
+            LogManager.addLog("🪟 Limpiando caché de miniaturas...");
+
+            ProcessBuilder pb = new ProcessBuilder(
+                    "cmd",
+                    "/c",
+                    "ie4uinit.exe -ClearIconCache"
+            );
+
+            pb.start();
+
+            LogManager.addLog("✔ Caché de iconos limpiada");
+
+        } catch (IOException e) {
+
+            e.printStackTrace();
+
+        }
 
     }
 
