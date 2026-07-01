@@ -30,7 +30,9 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
-
+target/
+installer/
+META-INF/git rm -r --cached installer
 ### VS Code ###
 .vscode/
 
