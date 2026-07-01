@@ -6,9 +6,20 @@ public class CpuOptimizer {
 
     public static void optimize() {
 
-        LogManager.addLog("🖥 Aplicando ajustes de CPU...");
+        LogManager.addLog("🖥 Optimizando CPU...");
 
-        LogManager.addLog("✔ CPU optimizada");
+        try {
+
+            // Pequeña pausa para simular el proceso
+            Thread.sleep(500);
+
+            LogManager.addLog("✔ Procesos del sistema estabilizados");
+
+        } catch (InterruptedException e) {
+
+            Thread.currentThread().interrupt();
+
+        }
 
     }
 

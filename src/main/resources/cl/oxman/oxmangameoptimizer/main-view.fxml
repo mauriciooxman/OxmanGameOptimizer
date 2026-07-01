@@ -4,8 +4,8 @@
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
-<?import javafx.scene.layout.VBox?>
 <?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.VBox?>
 
 <VBox
         xmlns="http://javafx.com/javafx"
@@ -15,8 +15,15 @@
         spacing="12">
 
     <padding>
-        <Insets top="25" right="30" bottom="25" left="30"/>
+        <Insets top="25"
+                right="30"
+                bottom="25"
+                left="30"/>
     </padding>
+
+    <!-- ===================================== -->
+    <!-- TÍTULO -->
+    <!-- ===================================== -->
 
     <Label
             text="OXMAN IT"
@@ -34,6 +41,10 @@
             text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             styleClass="separator"/>
 
+    <!-- ===================================== -->
+    <!-- CPU -->
+    <!-- ===================================== -->
+
     <Label
             text="🖥 CPU"
             styleClass="section"/>
@@ -45,6 +56,32 @@
     <Label
             fx:id="cpuLabel"
             text="CPU: 0%"/>
+
+    <Label
+            fx:id="cpuNameLabel"
+            text="Procesador"
+            wrapText="true"
+            styleClass="hardware-info"/>
+
+    <Label
+            fx:id="cpuCoresLabel"
+            text="Núcleos"
+            wrapText="true"
+            styleClass="hardware-info"/>
+
+    <Label
+            fx:id="cpuFreqLabel"
+            text="Frecuencia"
+            wrapText="true"
+            styleClass="hardware-info"/>
+
+    <Label
+            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            styleClass="separator"/>
+
+    <!-- ===================================== -->
+    <!-- RAM -->
+    <!-- ===================================== -->
 
     <Label
             text="💾 RAM"
@@ -62,16 +99,70 @@
             text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             styleClass="separator"/>
 
+    <!-- ===================================== -->
+    <!-- HARDWARE -->
+    <!-- ===================================== -->
+
+    <Label
+            text="🎮 GPU"
+            styleClass="section"/>
+
+    <Label
+            fx:id="gpuLabel"
+            text="Detectando GPU..."
+            wrapText="true"
+            styleClass="hardware-info"/>
+
+    <Label
+            text="💽 Disco"
+            styleClass="section"/>
+
+    <Label
+            fx:id="diskLabel"
+            text="Detectando Disco..."
+            wrapText="true"
+            styleClass="hardware-info"/>
+
+    <Label
+            text="🪟 Sistema Operativo"
+            styleClass="section"/>
+
+    <Label
+            fx:id="osLabel"
+            text="Detectando Sistema..."
+            wrapText="true"
+            styleClass="hardware-info"/>
+
+    <Label
+            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            styleClass="separator"/>
+
+    <!-- ===================================== -->
+    <!-- ESTADO -->
+    <!-- ===================================== -->
+
     <Label
             fx:id="statusLabel"
             text="🟢 Sistema Óptimo"
             styleClass="status"/>
+
+    <!-- ===================================== -->
+    <!-- BOTÓN -->
+    <!-- ===================================== -->
 
     <Button
             text="🚀 BOOST FPS"
             prefWidth="250"
             prefHeight="48"
             onAction="#boostFPS"/>
+
+    <Label
+            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            styleClass="separator"/>
+
+    <!-- ===================================== -->
+    <!-- LOG -->
+    <!-- ===================================== -->
 
     <Label
             text="📜 Registro de Optimización"
@@ -84,4 +175,5 @@
             editable="false"
             wrapText="true"
             styleClass="log-area"/>
+
 </VBox>

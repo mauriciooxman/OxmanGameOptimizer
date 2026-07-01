@@ -15,7 +15,7 @@ public class OxmanApplication extends Application {
         FXMLLoader fxmlLoader =
                 new FXMLLoader(OxmanApplication.class.getResource("main-view.fxml"));
 
-        Scene scene = new Scene(fxmlLoader.load(),700,700);
+        Scene scene = new Scene(fxmlLoader.load(),720,950);
 
         // Cargar CSS
         scene.getStylesheets().add(

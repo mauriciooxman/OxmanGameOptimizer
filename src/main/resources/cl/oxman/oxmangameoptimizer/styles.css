@@ -161,6 +161,14 @@
 
 }
 
+.hardware-info{
+
+    -fx-text-fill: #D0D0D0;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+
+}
+
 .log-area .content {
 
     -fx-background-color: #111111;

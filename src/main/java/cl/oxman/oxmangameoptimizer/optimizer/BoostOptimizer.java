@@ -40,7 +40,8 @@ public class BoostOptimizer {
 
         } catch (InterruptedException e) {
 
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
+            LogManager.addLog("❌ La optimización fue interrumpida.");
 
         }
 
