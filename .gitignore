@@ -38,3 +38,6 @@ META-INF/git rm -r --cached installer
 
 ### Mac OS ###
 .DS_Store
+
+/.m2/
+/release*/

@@ -93,7 +93,7 @@
                         <manifest>
 
                             <mainClass>
-                                cl.oxman.oxmangameoptimizer.OxmanApplication
+                                cl.oxman.oxmangameoptimizer.ApplicationLauncher
                             </mainClass>
 
                         </manifest>

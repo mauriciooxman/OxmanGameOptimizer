@@ -2,49 +2,44 @@ package cl.oxman.oxmangameoptimizer.optimizer;
 
 import cl.oxman.oxmangameoptimizer.ui.LogManager;
 
-public class BoostOptimizer {
+public final class BoostOptimizer {
 
-    public static void applyBoost() {
-
-        try {
-
-            LogManager.addLog("🧹 Limpiando archivos temporales...");
-            TempOptimizer.cleanTemp();
-            Thread.sleep(700);
-            LogManager.addLog("✔ Temporales eliminados");
-
-            LogManager.addLog("⚡ Activando Alto Rendimiento...");
-            PowerOptimizer.enableHighPerformance();
-            Thread.sleep(700);
-            LogManager.addLog("✔ Plan de energía activado");
-
-            LogManager.addLog("🌐 Limpiando caché DNS...");
-            NetworkOptimizer.flushDNS();
-            Thread.sleep(700);
-            LogManager.addLog("✔ Caché DNS limpiada");
-
-            CpuOptimizer.optimize();
-            Thread.sleep(500);
-
-            RamOptimizer.optimize();
-            Thread.sleep(500);
-
-            ServiceOptimizer.optimize();
-            Thread.sleep(500);
-
-            WindowsOptimizer.optimize();
-            Thread.sleep(500);
-
-            LogManager.addLog("");
-            LogManager.addLog("🎉 Optimización completada.");
-
-        } catch (InterruptedException e) {
-
-            Thread.currentThread().interrupt();
-            LogManager.addLog("❌ La optimización fue interrumpida.");
-
-        }
-
+    private BoostOptimizer() {
     }
 
+    public static void applyBoost(String gameName) {
+        LogManager.addLog("🚀 Preparando perfil competitivo para " + gameName + "...");
+
+        LogManager.addLog("⚡ Guardando plan de energía actual...");
+        if (PowerOptimizer.enableHighPerformance()) {
+            LogManager.addLog("✔ Plan de alto rendimiento activado");
+        } else {
+            LogManager.addLog("⚠ No se pudo activar alto rendimiento");
+        }
+
+        ServiceOptimizer.optimize();
+
+        LogManager.addLog("✔ Se conservaron SysMain, audio, red, Steam y Vanguard");
+        LogManager.addLog("✔ Sin limpieza de cachés que pueda provocar tirones");
+        LogManager.addLog("");
+        LogManager.addLog("🎉 Perfil competitivo aplicado.");
+    }
+
+    public static void restoreDefaults() {
+        LogManager.addLog("🎮 Finalizando sesión de juego...");
+
+        LogManager.addLog("⚡ Restaurando el plan de energía original...");
+        if (PowerOptimizer.restoreOriginalPlan()) {
+            LogManager.addLog("✔ Plan de energía original restaurado");
+        } else {
+            LogManager.addLog("⚠ No se pudo restaurar el plan de energía");
+        }
+
+        LogManager.addLog("⚙ Reactivando servicios detenidos por Oxman...");
+        ServiceOptimizer.restoreServices();
+
+        LogManager.addLog("✔ CPU, memoria y red permanecen administradas por Windows");
+        LogManager.addLog("");
+        LogManager.addLog("✅ Windows restaurado para uso normal.");
+    }
 }

@@ -1,8 +1,12 @@
 package cl.oxman.oxmangameoptimizer;
 
+import cl.oxman.oxmangameoptimizer.game.GamingSessionManager;
+import cl.oxman.oxmangameoptimizer.ui.TrayManager;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -15,7 +19,7 @@ public class OxmanApplication extends Application {
         FXMLLoader fxmlLoader =
                 new FXMLLoader(OxmanApplication.class.getResource("main-view.fxml"));
 
-        Scene scene = new Scene(fxmlLoader.load(),720,950);
+        Scene scene = new Scene(fxmlLoader.load(), 720, 1020);
 
         // Cargar CSS
         scene.getStylesheets().add(
@@ -25,8 +29,19 @@ public class OxmanApplication extends Application {
         );
 
         stage.setTitle("Oxman Game Optimizer");
+        stage.getIcons().add(new Image(
+                OxmanApplication.class.getResourceAsStream("company-logo-gold.png")
+        ));
 
         stage.setScene(scene);
+        stage.setMinWidth(660);
+        stage.setMinHeight(780);
+        Platform.setImplicitExit(false);
+        TrayManager.initialize(stage, GamingSessionManager::finishBeforeExit);
+        stage.setOnCloseRequest(event -> {
+            event.consume();
+            TrayManager.exitApplication();
+        });
 
         stage.show();
 

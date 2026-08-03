@@ -5,8 +5,37 @@
 
 .root{
 
-    -fx-background-color: #181818;
+    -fx-background-color:
+        radial-gradient(center 50% 5%, radius 70%, #24200F, #111111 55%, #080808);
 
+}
+
+.logo-halo {
+    -fx-padding: 7;
+    -fx-background-color: rgba(255, 193, 7, 0.08);
+    -fx-background-radius: 24;
+    -fx-border-color: rgba(255, 193, 7, 0.65);
+    -fx-border-width: 1.2;
+    -fx-border-radius: 24;
+    -fx-effect: dropshadow(gaussian, rgba(255, 193, 7, 0.35), 22, 0.25, 0, 3);
+}
+
+.brand-header {
+    -fx-padding: 2 8 6 8;
+}
+
+.metric-card, .system-card {
+    -fx-padding: 12;
+    -fx-background-color: rgba(20, 20, 20, 0.82);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 193, 7, 0.28);
+    -fx-border-radius: 12;
+}
+
+.section-small {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFC107;
 }
 
 /* -------------------------------------------
@@ -24,7 +53,8 @@
 
     -fx-font-size: 30px;
     -fx-font-weight: bold;
-    -fx-text-fill: #FFD700;
+    -fx-text-fill: #FFC107;
+    -fx-effect: dropshadow(gaussian, rgba(255, 193, 7, 0.35), 8, 0.2, 0, 1);
 
 }
 
@@ -102,7 +132,11 @@
 
 .button{
 
-    -fx-background-color: #303030;
+    -fx-background-color: linear-gradient(to bottom, #302C20, #1C1C1C);
+
+    -fx-border-color: #8A6A00;
+
+    -fx-border-radius: 10;
 
     -fx-text-fill: white;
 
@@ -118,7 +152,9 @@
 
 .button:hover{
 
-    -fx-background-color: #4A4A4A;
+    -fx-background-color: linear-gradient(to bottom, #FFC107, #A97800);
+
+    -fx-text-fill: #111111;
 
 }
 
@@ -173,4 +209,26 @@
 
     -fx-background-color: #111111;
 
+}
+
+.combo-box {
+    -fx-background-color: #171717;
+    -fx-border-color: #8A6A00;
+    -fx-border-radius: 9;
+    -fx-background-radius: 9;
+    -fx-font-size: 14px;
+}
+
+.combo-box .list-cell {
+    -fx-text-fill: #F4F4F4;
+    -fx-background-color: #171717;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #111111;
+    -fx-border-color: #FFC107;
+}
+
+.button:disabled {
+    -fx-opacity: 0.45;
 }

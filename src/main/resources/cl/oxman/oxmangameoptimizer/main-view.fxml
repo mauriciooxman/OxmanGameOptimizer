@@ -2,178 +2,90 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.TextArea?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox
-        xmlns="http://javafx.com/javafx"
-        xmlns:fx="http://javafx.com/fxml"
-        fx:controller="cl.oxman.oxmangameoptimizer.ui.MainController"
-        alignment="TOP_CENTER"
-        spacing="12">
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="cl.oxman.oxmangameoptimizer.ui.MainController"
+      alignment="TOP_CENTER"
+      spacing="10">
 
     <padding>
-        <Insets top="25"
-                right="30"
-                bottom="25"
-                left="30"/>
+        <Insets top="16" right="28" bottom="16" left="28"/>
     </padding>
 
-    <!-- ===================================== -->
-    <!-- TÍTULO -->
-    <!-- ===================================== -->
+    <HBox alignment="CENTER" spacing="18" styleClass="brand-header">
+        <StackPane styleClass="logo-halo" maxWidth="116" maxHeight="116">
+            <ImageView fitWidth="102" fitHeight="102" preserveRatio="true" smooth="true">
+                <image>
+                    <Image url="@company-logo-gold.png"/>
+                </image>
+            </ImageView>
+        </StackPane>
+        <VBox alignment="CENTER_LEFT" spacing="1">
+            <Label text="OXMAN IT" styleClass="title"/>
+            <Label text="GAME OPTIMIZER" styleClass="title2"/>
+            <Label text="Competitive Performance Dashboard" styleClass="subtitle"/>
+        </VBox>
+    </HBox>
 
-    <Label
-            text="OXMAN IT"
-            styleClass="title"/>
+    <HBox alignment="CENTER" spacing="14">
+        <VBox alignment="CENTER_LEFT" spacing="6" styleClass="metric-card" HBox.hgrow="ALWAYS">
+            <Label text="CPU" styleClass="section"/>
+            <ProgressBar fx:id="cpuBar" maxWidth="Infinity"/>
+            <Label fx:id="cpuLabel" text="CPU: 0%"/>
+            <Label fx:id="cpuNameLabel" text="Procesador" wrapText="true" styleClass="hardware-info"/>
+            <Label fx:id="cpuCoresLabel" text="Núcleos" wrapText="true" styleClass="hardware-info"/>
+            <Label fx:id="cpuFreqLabel" text="Frecuencia" wrapText="true" styleClass="hardware-info"/>
+        </VBox>
 
-    <Label
-            text="GAME OPTIMIZER"
-            styleClass="title2"/>
+        <VBox alignment="CENTER_LEFT" spacing="6" styleClass="metric-card" HBox.hgrow="ALWAYS">
+            <Label text="RAM" styleClass="section"/>
+            <ProgressBar fx:id="ramBar" maxWidth="Infinity"/>
+            <Label fx:id="ramLabel" text="RAM: 0%"/>
+            <Label text="GPU" styleClass="section-small"/>
+            <Label fx:id="gpuLabel" text="Detectando GPU..." wrapText="true" styleClass="hardware-info"/>
+        </VBox>
+    </HBox>
 
-    <Label
-            text="Performance Dashboard"
-            styleClass="subtitle"/>
+    <GridPane hgap="12" vgap="4" styleClass="system-card" maxWidth="Infinity">
+        <Label text="DISCO" styleClass="section-small" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+        <Label fx:id="diskLabel" text="Detectando disco..." wrapText="true"
+               styleClass="hardware-info" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+        <Label text="WINDOWS" styleClass="section-small" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+        <Label fx:id="osLabel" text="Detectando sistema..." wrapText="true"
+               styleClass="hardware-info" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+    </GridPane>
 
-    <Label
-            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            styleClass="separator"/>
+    <Label fx:id="statusLabel" text="🟢 Sistema óptimo" styleClass="status"/>
 
-    <!-- ===================================== -->
-    <!-- CPU -->
-    <!-- ===================================== -->
+    <HBox alignment="CENTER" spacing="10">
+        <ComboBox fx:id="gameSelector" prefWidth="210" promptText="Selecciona un juego"/>
+        <Button fx:id="boostButton" text="🚀 BOOST FPS" prefWidth="190" prefHeight="44"
+                onAction="#boostFPS"/>
+        <Button fx:id="finishButton" text="FINALIZAR JUEGO" prefWidth="190" prefHeight="44"
+                disable="true" onAction="#finishGame"/>
+    </HBox>
 
-    <Label
-            text="🖥 CPU"
-            styleClass="section"/>
+    <Label text="REGISTRO DE OPTIMIZACIÓN" styleClass="section"/>
 
-    <ProgressBar
-            fx:id="cpuBar"
-            prefWidth="340"/>
-
-    <Label
-            fx:id="cpuLabel"
-            text="CPU: 0%"/>
-
-    <Label
-            fx:id="cpuNameLabel"
-            text="Procesador"
-            wrapText="true"
-            styleClass="hardware-info"/>
-
-    <Label
-            fx:id="cpuCoresLabel"
-            text="Núcleos"
-            wrapText="true"
-            styleClass="hardware-info"/>
-
-    <Label
-            fx:id="cpuFreqLabel"
-            text="Frecuencia"
-            wrapText="true"
-            styleClass="hardware-info"/>
-
-    <Label
-            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            styleClass="separator"/>
-
-    <!-- ===================================== -->
-    <!-- RAM -->
-    <!-- ===================================== -->
-
-    <Label
-            text="💾 RAM"
-            styleClass="section"/>
-
-    <ProgressBar
-            fx:id="ramBar"
-            prefWidth="340"/>
-
-    <Label
-            fx:id="ramLabel"
-            text="RAM: 0%"/>
-
-    <Label
-            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            styleClass="separator"/>
-
-    <!-- ===================================== -->
-    <!-- HARDWARE -->
-    <!-- ===================================== -->
-
-    <Label
-            text="🎮 GPU"
-            styleClass="section"/>
-
-    <Label
-            fx:id="gpuLabel"
-            text="Detectando GPU..."
-            wrapText="true"
-            styleClass="hardware-info"/>
-
-    <Label
-            text="💽 Disco"
-            styleClass="section"/>
-
-    <Label
-            fx:id="diskLabel"
-            text="Detectando Disco..."
-            wrapText="true"
-            styleClass="hardware-info"/>
-
-    <Label
-            text="🪟 Sistema Operativo"
-            styleClass="section"/>
-
-    <Label
-            fx:id="osLabel"
-            text="Detectando Sistema..."
-            wrapText="true"
-            styleClass="hardware-info"/>
-
-    <Label
-            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            styleClass="separator"/>
-
-    <!-- ===================================== -->
-    <!-- ESTADO -->
-    <!-- ===================================== -->
-
-    <Label
-            fx:id="statusLabel"
-            text="🟢 Sistema Óptimo"
-            styleClass="status"/>
-
-    <!-- ===================================== -->
-    <!-- BOTÓN -->
-    <!-- ===================================== -->
-
-    <Button
-            text="🚀 BOOST FPS"
-            prefWidth="250"
-            prefHeight="48"
-            onAction="#boostFPS"/>
-
-    <Label
-            text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            styleClass="separator"/>
-
-    <!-- ===================================== -->
-    <!-- LOG -->
-    <!-- ===================================== -->
-
-    <Label
-            text="📜 Registro de Optimización"
-            styleClass="section"/>
-
-    <TextArea
-            fx:id="logArea"
-            prefWidth="340"
-            prefHeight="170"
-            editable="false"
-            wrapText="true"
-            styleClass="log-area"/>
+    <TextArea fx:id="logArea"
+              prefWidth="620"
+              prefHeight="210"
+              minHeight="150"
+              editable="false"
+              wrapText="true"
+              styleClass="log-area"
+              VBox.vgrow="ALWAYS"/>
 
 </VBox>

@@ -1,182 +1,146 @@
 package cl.oxman.oxmangameoptimizer.ui;
 
+import cl.oxman.oxmangameoptimizer.game.GameProfile;
+import cl.oxman.oxmangameoptimizer.game.GamingSessionManager;
 import cl.oxman.oxmangameoptimizer.monitor.HardwareMonitor;
-import cl.oxman.oxmangameoptimizer.optimizer.BoostOptimizer;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.util.Duration;
 
 public class MainController {
 
-    private boolean boosting = false;
+    private int monitorTick;
 
-    @FXML
-    private Label cpuLabel;
-
-    @FXML
-    private Label ramLabel;
-
-    @FXML
-    private Label gpuLabel;
-
-    @FXML
-    private Label diskLabel;
-
-    @FXML
-    private Label osLabel;
-
-    @FXML
-    private Label cpuNameLabel;
-
-    @FXML
-    private Label cpuCoresLabel;
-
-    @FXML
-    private Label cpuFreqLabel;
-
-    @FXML
-    private Label statusLabel;
-
-    @FXML
-    private ProgressBar cpuBar;
-
-    @FXML
-    private ProgressBar ramBar;
-
-    @FXML
-    private TextArea logArea;
+    @FXML private Label cpuLabel;
+    @FXML private Label ramLabel;
+    @FXML private Label gpuLabel;
+    @FXML private Label diskLabel;
+    @FXML private Label osLabel;
+    @FXML private Label cpuNameLabel;
+    @FXML private Label cpuCoresLabel;
+    @FXML private Label cpuFreqLabel;
+    @FXML private Label statusLabel;
+    @FXML private ProgressBar cpuBar;
+    @FXML private ProgressBar ramBar;
+    @FXML private TextArea logArea;
+    @FXML private ComboBox<GameProfile> gameSelector;
+    @FXML private Button boostButton;
+    @FXML private Button finishButton;
 
     @FXML
     public void initialize() {
-
-        // Conectar sistema de logs
         LogManager.setLogArea(logArea);
+        gameSelector.getItems().setAll(GameProfile.values());
+        gameSelector.setCellFactory(listView -> createGameCell());
+        gameSelector.setButtonCell(createGameCell());
+        gameSelector.getSelectionModel().select(GameProfile.COUNTER_STRIKE_2);
 
-        // Información fija del hardware
         gpuLabel.setText(HardwareMonitor.getGpuName());
         diskLabel.setText(HardwareMonitor.getDiskName());
         osLabel.setText(HardwareMonitor.getOperatingSystem());
-
         cpuNameLabel.setText(HardwareMonitor.getCpuName());
+        cpuCoresLabel.setText(HardwareMonitor.getPhysicalCores()
+                + " Núcleos | " + HardwareMonitor.getLogicalCores() + " Hilos");
+        cpuFreqLabel.setText(String.format(
+                "Frecuencia Máx: %.2f GHz", HardwareMonitor.getMaxFrequencyGHz()));
 
-        cpuCoresLabel.setText(
-                HardwareMonitor.getPhysicalCores()
-                        + " Núcleos | "
-                        + HardwareMonitor.getLogicalCores()
-                        + " Hilos"
-        );
-
-        cpuFreqLabel.setText(
-                String.format(
-                        "Frecuencia Máx: %.2f GHz",
-                        HardwareMonitor.getMaxFrequencyGHz()
-                )
-        );
-
-        Timeline timeline = new Timeline(
-
-                new KeyFrame(
-                        Duration.millis(500),
-                        event -> updateHardware()
-                )
-
-        );
-
+        Timeline timeline = new Timeline(new KeyFrame(
+                Duration.millis(500), event -> updateHardware()));
         timeline.setCycleCount(Animation.INDEFINITE);
         timeline.play();
-
     }
 
-    /**
-     * Actualiza CPU, RAM y estado.
-     */
     private void updateHardware() {
-
-        //------------------------
-        // CPU
-        //------------------------
-
-        double cpu = HardwareMonitor.getCpuUsage();
-
-        cpuLabel.setText(
-                String.format("CPU %.1f %%", cpu)
-        );
-
-        cpuBar.setProgress(cpu / 100.0);
-
-        //------------------------
-        // RAM
-        //------------------------
-
-        double ram = HardwareMonitor.getRamUsage();
-
-        ramLabel.setText(
-
-                String.format(
-                        "RAM %.1f%% (%.1f / %.1f GB)",
-                        ram,
-                        HardwareMonitor.getUsedRamGB(),
-                        HardwareMonitor.getTotalRamGB()
-                )
-
-        );
-
-        ramBar.setProgress(ram / 100.0);
-
-        //------------------------
-        // Estado
-        //------------------------
-
-        if (boosting) {
+        monitorTick++;
+        if (GamingSessionManager.isSessionActive() && monitorTick % 4 != 0) {
             return;
         }
 
-        if (cpu < 40) {
+        double cpu = HardwareMonitor.getCpuUsage();
+        double ram = HardwareMonitor.getRamUsage();
+        cpuLabel.setText(String.format("CPU %.1f %%", cpu));
+        cpuBar.setProgress(cpu / 100.0);
+        ramLabel.setText(String.format("RAM %.1f%% (%.1f / %.1f GB)",
+                ram, HardwareMonitor.getUsedRamGB(), HardwareMonitor.getTotalRamGB()));
+        ramBar.setProgress(ram / 100.0);
 
-            statusLabel.setText("🟢 Sistema Óptimo");
-
-        } else if (cpu < 75) {
-
-            statusLabel.setText("🟡 Carga Moderada");
-
-        } else {
-
-            statusLabel.setText("🔴 Alta utilización");
-
+        if (GamingSessionManager.isSessionActive()) {
+            return;
         }
-
+        if (cpu < 40) {
+            statusLabel.setText("🟢 Sistema óptimo");
+        } else if (cpu < 75) {
+            statusLabel.setText("🟡 Carga moderada");
+        } else {
+            statusLabel.setText("🔴 Alta utilización");
+        }
     }
 
     @FXML
     public void boostFPS(ActionEvent event) {
-
-        boosting = true;
-
-        statusLabel.setText("🚀 Optimizando...");
+        GameProfile profile = gameSelector.getValue();
+        if (profile == null) {
+            statusLabel.setText("Selecciona un juego");
+            return;
+        }
 
         logArea.clear();
-
-        new Thread(() -> {
-
-            BoostOptimizer.applyBoost();
-
-            Platform.runLater(() -> {
-
-                statusLabel.setText("🚀 Sistema optimizado");
-
-                boosting = false;
-
-            });
-
-        }).start();
-
+        if (GamingSessionManager.start(profile, this::updateSessionStatus)) {
+            boostButton.setDisable(true);
+            finishButton.setDisable(false);
+            gameSelector.setDisable(true);
+        }
     }
 
+    @FXML
+    public void finishGame(ActionEvent event) {
+        finishButton.setDisable(true);
+        GamingSessionManager.finishManually(this::updateSessionStatus);
+    }
+
+    private void updateSessionStatus(String status) {
+        Platform.runLater(() -> {
+            statusLabel.setText(status);
+            if ("Windows restaurado".equals(status)) {
+                boostButton.setDisable(false);
+                finishButton.setDisable(true);
+                gameSelector.setDisable(false);
+            }
+        });
+    }
+
+    private ListCell<GameProfile> createGameCell() {
+        return new ListCell<>() {
+            @Override
+            protected void updateItem(GameProfile profile, boolean empty) {
+                super.updateItem(profile, empty);
+                if (empty || profile == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+
+                ImageView icon = new ImageView(new Image(
+                        MainController.class.getResourceAsStream(profile.getIconResource())));
+                icon.setFitWidth(26);
+                icon.setFitHeight(26);
+                icon.setPreserveRatio(true);
+                icon.setSmooth(true);
+                setText(profile.toString());
+                setGraphic(icon);
+            }
+        };
+    }
 }

@@ -1,0 +1,123 @@
+package cl.oxman.oxmangameoptimizer.game;
+
+import cl.oxman.oxmangameoptimizer.optimizer.BoostOptimizer;
+import cl.oxman.oxmangameoptimizer.ui.LogManager;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+
+public final class GamingSessionManager {
+
+    private static final AtomicBoolean SESSION_ACTIVE = new AtomicBoolean(false);
+    private static final AtomicBoolean RESTORING = new AtomicBoolean(false);
+
+    private GamingSessionManager() {
+    }
+
+    public static boolean start(GameProfile profile, Consumer<String> statusCallback) {
+        if (!SESSION_ACTIVE.compareAndSet(false, true)) {
+            LogManager.addLog("⚠ Ya existe una sesión de juego activa.");
+            return false;
+        }
+
+        Thread sessionThread = new Thread(() -> runSession(profile, statusCallback), "game-session");
+        sessionThread.setDaemon(true);
+        sessionThread.start();
+        return true;
+    }
+
+    public static void finishManually(Consumer<String> statusCallback) {
+        Thread restoreThread = new Thread(() -> restore(statusCallback), "manual-game-restore");
+        restoreThread.setDaemon(true);
+        restoreThread.start();
+    }
+
+    public static boolean isSessionActive() {
+        return SESSION_ACTIVE.get();
+    }
+
+    public static void finishBeforeExit() {
+        if (SESSION_ACTIVE.get()) {
+            restore(status -> { });
+        }
+    }
+
+    private static void runSession(GameProfile profile, Consumer<String> statusCallback) {
+        statusCallback.accept("Aplicando perfil para " + profile);
+        BoostOptimizer.applyBoost(profile.toString());
+
+        LogManager.addLog("🎮 Abriendo " + profile + "...");
+        boolean launched = profile.launch();
+        if (!launched) {
+            LogManager.addLog("⚠ Abre el juego manualmente; lo detectaré durante 2 minutos.");
+        }
+
+        statusCallback.accept("Esperando que inicie " + profile);
+        if (!waitForStart(profile, 120)) {
+            if (profile == GameProfile.VALORANT) {
+                LogManager.addLog("⚠ Riot Client no respondió. Ciérralo desde la bandeja");
+                LogManager.addLog("  o reinicia Windows y vuelve a intentar.");
+            } else {
+                LogManager.addLog("⚠ No se detectó el juego.");
+            }
+            LogManager.addLog("Restaurando Windows...");
+            restore(statusCallback);
+            return;
+        }
+
+        LogManager.addLog("✔ Juego detectado. El perfil seguirá activo hasta que cierres el juego.");
+        statusCallback.accept(profile + " en ejecución");
+
+        while (SESSION_ACTIVE.get() && profile.isRunning()) {
+            if (!sleepSeconds(3)) {
+                return;
+            }
+        }
+
+        if (SESSION_ACTIVE.get()) {
+            LogManager.addLog("🎮 Juego cerrado; iniciando restauración automática.");
+            restore(statusCallback);
+        }
+    }
+
+    private static boolean waitForStart(GameProfile profile, int timeoutSeconds) {
+        int attempts = timeoutSeconds / 2;
+        for (int i = 0; i < attempts && SESSION_ACTIVE.get(); i++) {
+            if (profile.isRunning()) {
+                return true;
+            }
+            if (i == 10) {
+                profile.retryLaunch();
+            }
+            if (!sleepSeconds(2)) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static void restore(Consumer<String> statusCallback) {
+        if (!RESTORING.compareAndSet(false, true)) {
+            return;
+        }
+
+        try {
+            statusCallback.accept("Restaurando Windows...");
+            BoostOptimizer.restoreDefaults();
+            SESSION_ACTIVE.set(false);
+            statusCallback.accept("Windows restaurado");
+        } finally {
+            RESTORING.set(false);
+        }
+    }
+
+    private static boolean sleepSeconds(int seconds) {
+        try {
+            Thread.sleep(seconds * 1000L);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+}
