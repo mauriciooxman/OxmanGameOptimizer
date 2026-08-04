@@ -3,9 +3,6 @@ package cl.oxman.oxmangameoptimizer.ui;
 import cl.oxman.oxmangameoptimizer.game.GameProfile;
 import cl.oxman.oxmangameoptimizer.game.GamingSessionManager;
 import cl.oxman.oxmangameoptimizer.monitor.HardwareMonitor;
-import javafx.animation.Animation;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -17,11 +14,20 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.util.Duration;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class MainController {
 
     private int monitorTick;
+    private final ScheduledExecutorService hardwareExecutor =
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "hardware-monitor");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     @FXML private Label cpuLabel;
     @FXML private Label ramLabel;
@@ -47,38 +53,66 @@ public class MainController {
         gameSelector.setButtonCell(createGameCell());
         gameSelector.getSelectionModel().select(GameProfile.COUNTER_STRIKE_2);
 
-        gpuLabel.setText(HardwareMonitor.getGpuName());
-        diskLabel.setText(HardwareMonitor.getDiskName());
-        osLabel.setText(HardwareMonitor.getOperatingSystem());
-        cpuNameLabel.setText(HardwareMonitor.getCpuName());
-        cpuCoresLabel.setText(HardwareMonitor.getPhysicalCores()
-                + " Núcleos | " + HardwareMonitor.getLogicalCores() + " Hilos");
-        cpuFreqLabel.setText(String.format(
-                "Frecuencia Máx: %.2f GHz", HardwareMonitor.getMaxFrequencyGHz()));
-
-        Timeline timeline = new Timeline(new KeyFrame(
-                Duration.millis(500), event -> updateHardware()));
-        timeline.setCycleCount(Animation.INDEFINITE);
-        timeline.play();
+        hardwareExecutor.execute(this::loadHardwareInformation);
+        hardwareExecutor.scheduleAtFixedRate(
+                this::readHardwareUsage, 500, 1000, TimeUnit.MILLISECONDS);
     }
 
-    private void updateHardware() {
+    private void loadHardwareInformation() {
+        try {
+            String gpu = HardwareMonitor.getGpuName();
+            String disk = HardwareMonitor.getDiskName();
+            String os = HardwareMonitor.getOperatingSystem();
+            String cpuName = HardwareMonitor.getCpuName();
+            String cores = HardwareMonitor.getPhysicalCores()
+                    + " Núcleos | " + HardwareMonitor.getLogicalCores() + " Hilos";
+            String frequency = String.format(
+                    "Frecuencia Máx: %.2f GHz", HardwareMonitor.getMaxFrequencyGHz());
+
+            Platform.runLater(() -> {
+                gpuLabel.setText(gpu);
+                diskLabel.setText(disk);
+                osLabel.setText(os);
+                cpuNameLabel.setText(cpuName);
+                cpuCoresLabel.setText(cores);
+                cpuFreqLabel.setText(frequency);
+            });
+        } catch (RuntimeException exception) {
+            Platform.runLater(() -> statusLabel.setText(
+                    "No se pudo leer toda la información del hardware"));
+        }
+    }
+
+    private void readHardwareUsage() {
         monitorTick++;
         if (GamingSessionManager.isSessionActive() && monitorTick % 4 != 0) {
             return;
         }
 
-        double cpu = HardwareMonitor.getCpuUsage();
-        double ram = HardwareMonitor.getRamUsage();
+        try {
+            double cpu = HardwareMonitor.getCpuUsage();
+            double ram = HardwareMonitor.getRamUsage();
+            double usedRam = HardwareMonitor.getUsedRamGB();
+            double totalRam = HardwareMonitor.getTotalRamGB();
+
+            Platform.runLater(() -> updateHardwareControls(
+                    cpu, ram, usedRam, totalRam));
+        } catch (RuntimeException exception) {
+            Platform.runLater(() -> statusLabel.setText(
+                    "No se pudo actualizar el monitor de hardware"));
+        }
+    }
+
+    private void updateHardwareControls(
+            double cpu, double ram, double usedRam, double totalRam) {
         cpuLabel.setText(String.format("CPU %.1f %%", cpu));
         cpuBar.setProgress(cpu / 100.0);
         ramLabel.setText(String.format("RAM %.1f%% (%.1f / %.1f GB)",
-                ram, HardwareMonitor.getUsedRamGB(), HardwareMonitor.getTotalRamGB()));
+                ram, usedRam, totalRam));
         ramBar.setProgress(ram / 100.0);
 
-        if (GamingSessionManager.isSessionActive()) {
-            return;
-        }
+        if (GamingSessionManager.isSessionActive()) return;
+
         if (cpu < 40) {
             statusLabel.setText("🟢 Sistema óptimo");
         } else if (cpu < 75) {

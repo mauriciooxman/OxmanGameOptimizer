@@ -19,7 +19,7 @@ public class OxmanApplication extends Application {
         FXMLLoader fxmlLoader =
                 new FXMLLoader(OxmanApplication.class.getResource("main-view.fxml"));
 
-        Scene scene = new Scene(fxmlLoader.load(), 720, 1020);
+        Scene scene = new Scene(fxmlLoader.load(), 720, 850);
 
         // Cargar CSS
         scene.getStylesheets().add(
@@ -35,7 +35,7 @@ public class OxmanApplication extends Application {
 
         stage.setScene(scene);
         stage.setMinWidth(660);
-        stage.setMinHeight(780);
+        stage.setMinHeight(720);
         Platform.setImplicitExit(false);
         TrayManager.initialize(stage, GamingSessionManager::finishBeforeExit);
         stage.setOnCloseRequest(event -> {
@@ -44,6 +44,7 @@ public class OxmanApplication extends Application {
         });
 
         stage.show();
+        stage.centerOnScreen();
 
     }
 

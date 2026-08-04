@@ -3,6 +3,7 @@ module cl.oxman.oxmangameoptimizer {
     requires javafx.controls;
     requires javafx.fxml;
     requires jdk.management;
+    requires jdk.unsupported;
     requires java.desktop;
 
     requires com.github.oshi;
