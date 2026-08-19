@@ -1,125 +1,79 @@
 package cl.oxman.oxmangameoptimizer.game;
 
 import cl.oxman.oxmangameoptimizer.ui.LogManager;
-
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
-public enum GameProfile {
-    COUNTER_STRIKE_2(
-            "Counter-Strike 2",
-            "/cl/oxman/oxmangameoptimizer/cs2-icon.png",
-            Set.of("cs2.exe"),
-            List.of()
-    ),
-    VALORANT(
-            "VALORANT",
+public final class GameProfile {
+    public static final GameProfile COUNTER_STRIKE_2 = new GameProfile("steam:730", "Counter-Strike 2",
+            "/cl/oxman/oxmangameoptimizer/cs2-icon.png", Set.of("cs2.exe"), null, "steam://rungameid/730");
+    public static final GameProfile VALORANT = new GameProfile("riot:valorant", "VALORANT",
             "/cl/oxman/oxmangameoptimizer/valorant-icon.png",
-            Set.of("valorant-win64-shipping.exe", "valorant.exe"),
-            List.of(
-                    Path.of("C:\\Riot Games\\Riot Client\\RiotClientServices.exe"),
-                    Path.of(System.getenv().getOrDefault("ProgramFiles", "C:\\Program Files"),
-                            "Riot Games", "Riot Client", "RiotClientServices.exe")
-            )
-    );
+            Set.of("valorant-win64-shipping.exe", "valorant.exe"), Path.of("C:\\Riot Games\\VALORANT"),
+            "riotclient://launch-product=valorant&launch-patchline=live");
 
+    private final String id;
     private final String displayName;
     private final String iconResource;
     private final Set<String> processNames;
-    private final List<Path> launcherCandidates;
+    private final Path installDirectory;
+    private final String launchUri;
 
-    GameProfile(String displayName, String iconResource,
-                Set<String> processNames, List<Path> launcherCandidates) {
-        this.displayName = displayName;
+    public GameProfile(String id, String displayName, String iconResource, Set<String> processNames,
+                       Path installDirectory, String launchUri) {
+        this.id = Objects.requireNonNull(id);
+        this.displayName = Objects.requireNonNull(displayName);
         this.iconResource = iconResource;
-        this.processNames = processNames;
-        this.launcherCandidates = launcherCandidates;
+        this.processNames = processNames.stream().map(name -> name.toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        this.installDirectory = installDirectory == null ? null : installDirectory.toAbsolutePath().normalize();
+        this.launchUri = launchUri;
+    }
+
+    public static GameProfile installed(String id, String name, Path directory, String launchUri) {
+        return new GameProfile(id, name, null, Set.of(), directory, launchUri);
     }
 
     public boolean launch() {
+        if (launchUri == null || launchUri.isBlank()) return false;
         try {
-            if (this == COUNTER_STRIKE_2) {
-                new ProcessBuilder("cmd", "/c", "start", "", "steam://rungameid/730").start();
-                return true;
-            }
-
-            for (Path launcher : launcherCandidates) {
-                if (Files.isRegularFile(launcher)) {
-                    String command = "start \"\" \"" + launcher
-                            + "\" --launch-product=valorant --launch-patchline=live";
-                    int exitCode = new ProcessBuilder("cmd", "/c", command)
-                            .redirectErrorStream(true)
-                            .start()
-                            .waitFor();
-                    if (exitCode == 0) {
-                        LogManager.addLog("✔ Riot Client iniciado desde: " + launcher);
-                        return true;
-                    }
-                }
-            }
-        } catch (IOException e) {
-            LogManager.addLog("❌ No se pudo abrir el launcher del juego.");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LogManager.addLog("❌ El inicio del juego fue interrumpido.");
+            new ProcessBuilder("cmd", "/c", "start", "", launchUri).start();
+            return true;
+        } catch (IOException exception) {
+            LogManager.addLog("❌ No se pudo abrir el launcher de " + displayName + ".");
+            return false;
         }
-
-        return false;
     }
 
-    public void retryLaunch() {
-        if (this != VALORANT) {
-            return;
-        }
+    public void retryLaunch() { if (equals(VALORANT)) launch(); }
 
+    public boolean matches(ProcessHandle process) {
+        var command = process.info().command();
+        if (command.isEmpty()) return false;
         try {
-            String command = "start \"\" "
-                    + "\"riotclient://launch-product=valorant&launch-patchline=live\"";
-            new ProcessBuilder("cmd", "/c", command)
-                    .redirectErrorStream(true)
-                    .start()
-                    .waitFor();
-            LogManager.addLog("↻ Reintentando VALORANT mediante el protocolo de Riot...");
-        } catch (IOException e) {
-            LogManager.addLog("⚠ No se pudo reenviar la orden a Riot Client.");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            Path executable = Path.of(command.get()).toAbsolutePath().normalize();
+            String fileName = executable.getFileName().toString().toLowerCase(Locale.ROOT);
+            if (processNames.contains(fileName)) return true;
+            return installDirectory != null && executable.startsWith(installDirectory)
+                    && !isLauncherOrHelper(fileName);
+        } catch (RuntimeException exception) {
+            return false;
         }
     }
 
-    public boolean isRunning() {
-        for (String processName : processNames) {
-            try {
-                Process process = new ProcessBuilder(
-                        "tasklist", "/FI", "IMAGENAME eq " + processName, "/NH")
-                        .redirectErrorStream(true)
-                        .start();
-                String output = new String(
-                        process.getInputStream().readAllBytes(), Charset.defaultCharset());
-                if (process.waitFor() == 0
-                        && output.toLowerCase().contains(processName)) {
-                    return true;
-                }
-            } catch (IOException e) {
-                return false;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }
-        return false;
+    public boolean isRunning() { return ProcessHandle.allProcesses().anyMatch(this::matches); }
+
+    private static boolean isLauncherOrHelper(String name) {
+        return name.contains("launcher") || name.contains("crash") || name.contains("reporter")
+                || name.contains("helper") || name.contains("service") || name.contains("unins");
     }
 
-    public String getIconResource() {
-        return iconResource;
-    }
-
-    @Override
-    public String toString() {
-        return displayName;
-    }
+    public String getId() { return id; }
+    public String getIconResource() { return iconResource; }
+    @Override public String toString() { return displayName; }
+    @Override public boolean equals(Object other) { return other instanceof GameProfile p && id.equals(p.id); }
+    @Override public int hashCode() { return id.hashCode(); }
 }

@@ -54,7 +54,7 @@ public final class GamingSessionManager {
 
         statusCallback.accept("Esperando que inicie " + profile);
         if (!waitForStart(profile, 120)) {
-            if (profile == GameProfile.VALORANT) {
+            if (profile.equals(GameProfile.VALORANT)) {
                 LogManager.addLog("⚠ Riot Client no respondió. Ciérralo desde la bandeja");
                 LogManager.addLog("  o reinicia Windows y vuelve a intentar.");
             } else {

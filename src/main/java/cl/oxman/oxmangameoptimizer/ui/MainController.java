@@ -1,6 +1,7 @@
 package cl.oxman.oxmangameoptimizer.ui;
 
 import cl.oxman.oxmangameoptimizer.game.GameProfile;
+import cl.oxman.oxmangameoptimizer.game.GameDiscoveryService;
 import cl.oxman.oxmangameoptimizer.game.GamingSessionManager;
 import cl.oxman.oxmangameoptimizer.monitor.HardwareMonitor;
 import javafx.application.Platform;
@@ -18,10 +19,14 @@ import javafx.scene.image.ImageView;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 public class MainController {
 
     private int monitorTick;
+    private final GameDiscoveryService gameDiscovery = new GameDiscoveryService();
+    private volatile List<GameProfile> detectedGames = List.of();
+    private String lastRunningGameId;
     private final ScheduledExecutorService hardwareExecutor =
             Executors.newSingleThreadScheduledExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "hardware-monitor");
@@ -48,14 +53,43 @@ public class MainController {
     @FXML
     public void initialize() {
         LogManager.setLogArea(logArea);
-        gameSelector.getItems().setAll(GameProfile.values());
         gameSelector.setCellFactory(listView -> createGameCell());
         gameSelector.setButtonCell(createGameCell());
-        gameSelector.getSelectionModel().select(GameProfile.COUNTER_STRIKE_2);
 
         hardwareExecutor.execute(this::loadHardwareInformation);
+        hardwareExecutor.execute(this::discoverGames);
         hardwareExecutor.scheduleAtFixedRate(
                 this::readHardwareUsage, 500, 1000, TimeUnit.MILLISECONDS);
+        hardwareExecutor.scheduleAtFixedRate(this::detectRunningGame, 2, 2, TimeUnit.SECONDS);
+    }
+
+    private void discoverGames() {
+        detectedGames = gameDiscovery.discoverInstalledGames();
+        Platform.runLater(() -> {
+            gameSelector.getItems().setAll(detectedGames);
+            if (detectedGames.isEmpty()) {
+                gameSelector.setPromptText("No se encontraron juegos");
+                statusLabel.setText("No se encontraron juegos instalados");
+                LogManager.addLog("ℹ No se encontraron instalaciones de juegos compatibles.");
+            } else {
+                gameSelector.setPromptText("Selecciona o abre un juego");
+                statusLabel.setText("Se detectaron " + detectedGames.size() + " juegos instalados");
+                LogManager.addLog("🎮 " + detectedGames.size() + " juegos instalados encontrados.");
+            }
+        });
+    }
+
+    private void detectRunningGame() {
+        if (GamingSessionManager.isSessionActive() || detectedGames.isEmpty()) return;
+        gameDiscovery.findRunningGame(detectedGames).ifPresentOrElse(profile -> {
+            if (profile.getId().equals(lastRunningGameId)) return;
+            lastRunningGameId = profile.getId();
+            Platform.runLater(() -> {
+                gameSelector.getSelectionModel().select(profile);
+                statusLabel.setText("🎮 Detectado: " + profile);
+                LogManager.addLog("✔ Juego abierto detectado automáticamente: " + profile);
+            });
+        }, () -> lastRunningGameId = null);
     }
 
     private void loadHardwareInformation() {
@@ -166,14 +200,19 @@ public class MainController {
                     return;
                 }
 
-                ImageView icon = new ImageView(new Image(
-                        MainController.class.getResourceAsStream(profile.getIconResource())));
-                icon.setFitWidth(26);
-                icon.setFitHeight(26);
-                icon.setPreserveRatio(true);
-                icon.setSmooth(true);
                 setText(profile.toString());
-                setGraphic(icon);
+                var stream = profile.getIconResource() == null ? null
+                        : MainController.class.getResourceAsStream(profile.getIconResource());
+                if (stream == null) {
+                    setGraphic(null);
+                } else {
+                    ImageView icon = new ImageView(new Image(stream));
+                    icon.setFitWidth(26);
+                    icon.setFitHeight(26);
+                    icon.setPreserveRatio(true);
+                    icon.setSmooth(true);
+                    setGraphic(icon);
+                }
             }
         };
     }

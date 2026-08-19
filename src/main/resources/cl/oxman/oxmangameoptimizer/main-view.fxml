@@ -70,7 +70,7 @@
     <Label fx:id="statusLabel" text="🟢 Sistema óptimo" styleClass="status"/>
 
     <HBox alignment="CENTER" spacing="10">
-        <ComboBox fx:id="gameSelector" prefWidth="210" promptText="Selecciona un juego"/>
+        <ComboBox fx:id="gameSelector" prefWidth="250" promptText="Detectando juegos..."/>
         <Button fx:id="boostButton" text="🚀 BOOST FPS" prefWidth="190" prefHeight="44"
                 onAction="#boostFPS"/>
         <Button fx:id="finishButton" text="FINALIZAR JUEGO" prefWidth="190" prefHeight="44"
