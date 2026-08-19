@@ -13,8 +13,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -201,18 +199,7 @@ public class MainController {
                 }
 
                 setText(profile.toString());
-                var stream = profile.getIconResource() == null ? null
-                        : MainController.class.getResourceAsStream(profile.getIconResource());
-                if (stream == null) {
-                    setGraphic(null);
-                } else {
-                    ImageView icon = new ImageView(new Image(stream));
-                    icon.setFitWidth(26);
-                    icon.setFitHeight(26);
-                    icon.setPreserveRatio(true);
-                    icon.setSmooth(true);
-                    setGraphic(icon);
-                }
+                setGraphic(null);
             }
         };
     }

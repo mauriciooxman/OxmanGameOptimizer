@@ -110,7 +110,7 @@ public final class GameDiscoveryService {
         } catch (IOException | RuntimeException ignored) { }
 
         return candidates.stream().filter(Files::isDirectory).findFirst().map(path -> new GameProfile(
-                "riot:valorant", "VALORANT", "/cl/oxman/oxmangameoptimizer/valorant-icon.png",
+                "riot:valorant", "VALORANT",
                 java.util.Set.of("valorant-win64-shipping.exe", "valorant.exe"), path,
                 "riotclient://launch-product=valorant&launch-patchline=live"));
     }
