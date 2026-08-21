@@ -22,7 +22,7 @@ public final class GameDiscoveryService {
         Map<String, GameProfile> games = new LinkedHashMap<>();
         discoverSteam().forEach(game -> add(games, game));
         discoverEpic().forEach(game -> add(games, game));
-        discoverValorant().ifPresent(game -> add(games, game));
+        discoverRiot().forEach(game -> add(games, game));
         return games.values().stream().sorted(Comparator.comparing(GameProfile::toString,
                 String.CASE_INSENSITIVE_ORDER)).toList();
     }
@@ -90,29 +90,79 @@ public final class GameDiscoveryService {
         return result;
     }
 
-    private Optional<GameProfile> discoverValorant() {
-        List<Path> candidates = new ArrayList<>();
-        candidates.add(Path.of("C:\\Riot Games\\VALORANT"));
-        String programFiles = System.getenv("ProgramFiles");
-        if (programFiles != null) candidates.add(Path.of(programFiles, "Riot Games", "VALORANT"));
+    private List<GameProfile> discoverRiot() {
+        Map<String, Path> installs = new LinkedHashMap<>();
+        Path programData = Path.of(System.getenv().getOrDefault("ProgramData", "C:\\ProgramData"));
+        Path riotData = programData.resolve("Riot Games");
 
-        Path settings = Path.of(System.getenv().getOrDefault("ProgramData", "C:\\ProgramData"),
-                "Riot Games", "Metadata", "valorant.live", "valorant.live.product_settings.yaml");
-        if (Files.isRegularFile(settings)) try {
-            for (String line : Files.readAllLines(settings)) {
-                String key = "product_install_full_path:";
-                if (line.trim().startsWith(key)) {
-                    String path = line.trim().substring(key.length()).trim().replace("\"", "");
-                    if (!path.isBlank()) candidates.add(Path.of(path));
-                    break;
-                }
+        // Riot's product metadata is the most reliable source and also supports custom drives.
+        Path metadata = riotData.resolve("Metadata");
+        if (Files.isDirectory(metadata)) try (var files = Files.walk(metadata, 4)) {
+            files.filter(path -> path.getFileName().toString().endsWith(".product_settings.yaml"))
+                    .forEach(path -> riotInstallFromSettings(path).ifPresent(install -> {
+                        String file = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                        if (file.contains("valorant")) installs.putIfAbsent("valorant", install);
+                        else if (file.contains("league_of_legends") || file.contains("league-of-legends"))
+                            installs.putIfAbsent("league_of_legends", install);
+                    }));
+        } catch (IOException | RuntimeException ignored) { }
+
+        // RiotClientInstalls.json tells us the Riot root even when it is outside C:.
+        Path clientInstalls = riotData.resolve("RiotClientInstalls.json");
+        if (Files.isRegularFile(clientInstalls)) try {
+            var matcher = JSON.matcher(Files.readString(clientInstalls));
+            while (matcher.find()) {
+                String value = unescape(matcher.group(2));
+                if (!value.toLowerCase(Locale.ROOT).endsWith("riotclientservices.exe")) continue;
+                Path client = Path.of(value.replace('/', '\\')).toAbsolutePath().normalize();
+                Path riotRoot = client.getParent() == null ? null : client.getParent().getParent();
+                if (riotRoot != null) addRiotRootCandidates(installs, riotRoot);
             }
         } catch (IOException | RuntimeException ignored) { }
 
-        return candidates.stream().filter(Files::isDirectory).findFirst().map(path -> new GameProfile(
-                "riot:valorant", "VALORANT",
-                java.util.Set.of("valorant-win64-shipping.exe", "valorant.exe"), path,
+        addRiotRootCandidates(installs, Path.of("C:\\Riot Games"));
+        for (String variable : List.of("ProgramFiles", "ProgramFiles(x86)")) {
+            String value = System.getenv(variable);
+            if (value != null && !value.isBlank()) addRiotRootCandidates(installs, Path.of(value, "Riot Games"));
+        }
+
+        List<GameProfile> result = new ArrayList<>();
+        Path valorant = installs.get("valorant");
+        if (valorant != null) result.add(new GameProfile("riot:valorant", "VALORANT",
+                java.util.Set.of("valorant-win64-shipping.exe", "valorant.exe"), valorant,
                 "riotclient://launch-product=valorant&launch-patchline=live"));
+        Path league = installs.get("league_of_legends");
+        if (league != null) result.add(new GameProfile("riot:league_of_legends", "League of Legends",
+                java.util.Set.of("league of legends.exe", "leagueclient.exe", "leagueclientux.exe"), league,
+                "riotclient://launch-product=league_of_legends&launch-patchline=live"));
+        return result;
+    }
+
+    private static Optional<Path> riotInstallFromSettings(Path settings) {
+        try {
+            for (String line : Files.readAllLines(settings, StandardCharsets.UTF_8)) {
+                String trimmed = line.trim();
+                String key = "product_install_full_path:";
+                if (!trimmed.startsWith(key)) continue;
+                String value = trimmed.substring(key.length()).trim();
+                int comment = value.indexOf(" #");
+                if (comment >= 0) value = value.substring(0, comment).trim();
+                if (value.length() >= 2 && ((value.startsWith("\"") && value.endsWith("\""))
+                        || (value.startsWith("'") && value.endsWith("'")))) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                Path install = Path.of(value.replace('/', '\\')).toAbsolutePath().normalize();
+                return Files.isDirectory(install) ? Optional.of(install) : Optional.empty();
+            }
+        } catch (IOException | RuntimeException ignored) { }
+        return Optional.empty();
+    }
+
+    private static void addRiotRootCandidates(Map<String, Path> installs, Path root) {
+        Path valorant = root.resolve("VALORANT");
+        if (Files.isDirectory(valorant)) installs.putIfAbsent("valorant", valorant);
+        Path league = root.resolve("League of Legends");
+        if (Files.isDirectory(league)) installs.putIfAbsent("league_of_legends", league);
     }
 
     private static Map<String, String> pairs(String text, Pattern pattern) {
