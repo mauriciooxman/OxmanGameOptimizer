@@ -15,7 +15,12 @@ public final class GamingSessionManager {
     }
 
     public static boolean start(GameProfile profile, Consumer<String> statusCallback) {
+        if (!SystemOperationGuard.acquire(SystemOperationGuard.Operation.GAMING_SESSION)) {
+            LogManager.addLog("⚠ Hay otra operación activa: " + SystemOperationGuard.active());
+            return false;
+        }
         if (!SESSION_ACTIVE.compareAndSet(false, true)) {
+            SystemOperationGuard.release(SystemOperationGuard.Operation.GAMING_SESSION);
             LogManager.addLog("⚠ Ya existe una sesión de juego activa.");
             return false;
         }
@@ -70,6 +75,7 @@ public final class GamingSessionManager {
 
         while (SESSION_ACTIVE.get() && profile.isRunning()) {
             if (!sleepSeconds(3)) {
+                if (SESSION_ACTIVE.get()) restore(statusCallback);
                 return;
             }
         }
@@ -103,12 +109,17 @@ public final class GamingSessionManager {
 
         try {
             statusCallback.accept("Restaurando Windows...");
-            BoostOptimizer.restoreDefaults();
+            boolean restored = BoostOptimizer.restoreDefaults();
             SESSION_ACTIVE.set(false);
-            statusCallback.accept("Windows restaurado");
+            SystemOperationGuard.release(SystemOperationGuard.Operation.GAMING_SESSION);
+            statusCallback.accept(restored ? "Windows restaurado" : "Restauración pendiente");
         } finally {
             RESTORING.set(false);
         }
+    }
+
+    public static boolean recoverIncompleteSession() {
+        return BoostOptimizer.recoverIncompleteSession();
     }
 
     private static boolean sleepSeconds(int seconds) {

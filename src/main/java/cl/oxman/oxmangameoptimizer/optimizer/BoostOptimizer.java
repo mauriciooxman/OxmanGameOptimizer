@@ -1,45 +1,67 @@
 package cl.oxman.oxmangameoptimizer.optimizer;
 
 import cl.oxman.oxmangameoptimizer.ui.LogManager;
+import cl.oxman.oxmangameoptimizer.optimizer.action.PowerPlanAction;
+import cl.oxman.oxmangameoptimizer.optimizer.action.ServiceStopAction;
+import cl.oxman.oxmangameoptimizer.optimizer.state.SessionStateStore;
+import cl.oxman.oxmangameoptimizer.system.WindowsCommandRunner;
+
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class BoostOptimizer {
+
+    private static final WindowsCommandRunner COMMANDS = new WindowsCommandRunner();
+    private static final OptimizationEngine ENGINE = new OptimizationEngine(List.of(
+            new PowerPlanAction(COMMANDS),
+            // DiagTrack is optional and reversible. WSearch is intentionally preserved: its
+            // gaming benefit is marginal and stopping it degrades Windows search/indexing.
+            new ServiceStopAction("DiagTrack", "Telemetría de diagnóstico durante la sesión", COMMANDS)
+    ), SessionStateStore.localAppData(), LogManager::addLog);
+    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "optimization-engine");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private BoostOptimizer() {
     }
 
-    public static void applyBoost(String gameName) {
-        LogManager.addLog("🚀 Preparando perfil competitivo para " + gameName + "...");
-
-        LogManager.addLog("⚡ Guardando plan de energía actual...");
-        if (PowerOptimizer.enableHighPerformance()) {
-            LogManager.addLog("✔ Plan de alto rendimiento activado");
-        } else {
-            LogManager.addLog("⚠ No se pudo activar alto rendimiento");
-        }
-
-        ServiceOptimizer.optimize();
-
-        LogManager.addLog("✔ Se conservaron SysMain, audio, red, Steam y Vanguard");
-        LogManager.addLog("✔ Sin limpieza de cachés que pueda provocar tirones");
-        LogManager.addLog("");
-        LogManager.addLog("🎉 Perfil competitivo aplicado.");
+    public static OptimizationReport applyBoost(String gameName) {
+        LogManager.addLog("Preparando perfil competitivo para " + gameName);
+        OptimizationReport report = ENGINE.apply(gameName);
+        LogManager.addLog("Optimizaciones: " + report.applied() + "/" + report.applicable() + " aplicadas");
+        LogManager.addLog("Competitive Mode activo. Todos los cambios aplicados son reversibles.");
+        return report;
     }
 
-    public static void restoreDefaults() {
-        LogManager.addLog("🎮 Finalizando sesión de juego...");
+    public static CompletableFuture<OptimizationReport> applyBoostAsync(String gameName) {
+        return CompletableFuture.supplyAsync(() -> applyBoost(gameName), EXECUTOR);
+    }
 
-        LogManager.addLog("⚡ Restaurando el plan de energía original...");
-        if (PowerOptimizer.restoreOriginalPlan()) {
-            LogManager.addLog("✔ Plan de energía original restaurado");
-        } else {
-            LogManager.addLog("⚠ No se pudo restaurar el plan de energía");
-        }
+    public static boolean restoreDefaults() {
+        LogManager.addLog("Restaurando Windows");
+        OptimizationReport report = ENGINE.restore();
+        if (report.fullyRestored()) LogManager.addLog("Sistema restaurado correctamente");
+        else LogManager.addLog("⚠ Restauración incompleta; se conservará el snapshot para reintentar");
+        return report.fullyRestored();
+    }
 
-        LogManager.addLog("⚙ Reactivando servicios detenidos por Oxman...");
-        ServiceOptimizer.restoreServices();
+    public static CompletableFuture<OptimizationReport> restoreAsync() {
+        return CompletableFuture.supplyAsync(() -> {
+            LogManager.addLog("Restaurando Windows");
+            OptimizationReport report = ENGINE.restore();
+            if (report.fullyRestored()) LogManager.addLog("Sistema restaurado correctamente");
+            else LogManager.addLog("⚠ Restauración incompleta; se conservará el snapshot para reintentar");
+            return report;
+        }, EXECUTOR);
+    }
 
-        LogManager.addLog("✔ CPU, memoria y red permanecen administradas por Windows");
-        LogManager.addLog("");
-        LogManager.addLog("✅ Windows restaurado para uso normal.");
+    public static boolean recoverIncompleteSession() {
+        if (!ENGINE.hasIncompleteSession()) return true;
+        LogManager.addLog("Se detectó una sesión incompleta; restaurando cambios pendientes");
+        return restoreDefaults();
     }
 }

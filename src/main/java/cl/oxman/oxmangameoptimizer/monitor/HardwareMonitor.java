@@ -34,7 +34,7 @@ public class HardwareMonitor {
 
     }
 
-    public static double getCpuUsage() {
+    public static synchronized double getCpuUsage() {
 
         double load =
                 processor.getSystemCpuLoadBetweenTicks(previousTicks);

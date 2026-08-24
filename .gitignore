@@ -41,3 +41,6 @@ META-INF/git rm -r --cached installer
 
 /.m2/
 /release*/
+
+# Local development dependency; do not redistribute without a packaging policy.
+/tools/PresentMon.exe

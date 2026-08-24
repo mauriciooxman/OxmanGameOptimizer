@@ -2,6 +2,7 @@ package cl.oxman.oxmangameoptimizer;
 
 import cl.oxman.oxmangameoptimizer.game.GamingSessionManager;
 import cl.oxman.oxmangameoptimizer.ui.TrayManager;
+import cl.oxman.oxmangameoptimizer.ui.MainController;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -19,7 +20,8 @@ public class OxmanApplication extends Application {
         FXMLLoader fxmlLoader =
                 new FXMLLoader(OxmanApplication.class.getResource("main-view.fxml"));
 
-        Scene scene = new Scene(fxmlLoader.load(), 720, 850);
+        Scene scene = new Scene(fxmlLoader.load(), 720, 900);
+        MainController controller = fxmlLoader.getController();
 
         // Cargar CSS
         scene.getStylesheets().add(
@@ -37,7 +39,10 @@ public class OxmanApplication extends Application {
         stage.setMinWidth(660);
         stage.setMinHeight(720);
         Platform.setImplicitExit(false);
-        TrayManager.initialize(stage, GamingSessionManager::finishBeforeExit);
+        TrayManager.initialize(stage, () -> {
+            GamingSessionManager.finishBeforeExit();
+            controller.shutdown();
+        });
         stage.setOnCloseRequest(event -> {
             event.consume();
             TrayManager.exitApplication();

@@ -5,7 +5,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.List;
+import cl.oxman.oxmangameoptimizer.system.ProcessIdentity;
 
 public final class GameProfile {
     public static final GameProfile COUNTER_STRIKE_2 = new GameProfile("steam:730", "Counter-Strike 2",
@@ -61,7 +64,21 @@ public final class GameProfile {
         }
     }
 
-    public boolean isRunning() { return ProcessHandle.allProcesses().anyMatch(this::matches); }
+    public boolean isRunning() { return findRunningProcess().isPresent(); }
+    public Optional<ProcessHandle> findRunningProcess() {
+        List<ProcessHandle> matches = ProcessHandle.allProcesses().filter(this::matches).toList();
+        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+    }
+    /** Returns empty for zero or multiple candidates; experiments never choose an arbitrary PID. */
+    public Optional<ProcessIdentity> findRunningProcessIdentity() {
+        return findRunningProcess().flatMap(process -> process.info().startInstant().flatMap(start ->
+                process.info().command().map(command -> new ProcessIdentity(process.pid(), start.toEpochMilli(),
+                        Path.of(command).getFileName().toString()))));
+    }
+    public Optional<String> findRunningProcessName() {
+        return findRunningProcess().flatMap(process -> process.info().command())
+                .map(command -> Path.of(command).getFileName().toString());
+    }
 
     private static boolean isLauncherOrHelper(String name) {
         return name.contains("launcher") || name.contains("crash") || name.contains("reporter")

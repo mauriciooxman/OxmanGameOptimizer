@@ -4,6 +4,13 @@ import cl.oxman.oxmangameoptimizer.game.GameProfile;
 import cl.oxman.oxmangameoptimizer.game.GameDiscoveryService;
 import cl.oxman.oxmangameoptimizer.game.GamingSessionManager;
 import cl.oxman.oxmangameoptimizer.monitor.HardwareMonitor;
+import cl.oxman.oxmangameoptimizer.performance.PerformanceLabService;
+import cl.oxman.oxmangameoptimizer.performance.PerformanceSnapshot;
+import cl.oxman.oxmangameoptimizer.system.WindowsCommandRunner;
+import cl.oxman.oxmangameoptimizer.system.WindowsManagedProcessLauncher;
+import cl.oxman.oxmangameoptimizer.system.WindowsPrivileges;
+import cl.oxman.oxmangameoptimizer.system.WindowsProcessPriorityService;
+import cl.oxman.oxmangameoptimizer.performance.benchmark.*;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -15,14 +22,33 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
+import java.nio.file.Path;
+import java.time.Duration;
 
 public class MainController {
 
     private int monitorTick;
     private final GameDiscoveryService gameDiscovery = new GameDiscoveryService();
+    private final PerformanceLabService performanceLab = new PerformanceLabService(new WindowsCommandRunner());
+    private final Path presentMonPath = PresentMonCapture.configuredExecutable();
+    private final BenchmarkSessionCoordinator benchmarkCoordinator = new BenchmarkSessionCoordinator(
+            performanceLab,
+            new PresentMonCapture(presentMonPath, benchmarkDirectory(), new WindowsManagedProcessLauncher(),
+                    new PresentMonCsvParser(), LogManager::addLog),
+            new DefaultBenchmarkBoostService(),
+            record -> BenchmarkStore.localAppData().save(record),
+            this::updateBenchmarkState);
+    private final ExperimentalBenchmarkCoordinator experimentalCoordinator = new ExperimentalBenchmarkCoordinator(
+            performanceLab,
+            new PresentMonCapture(presentMonPath, benchmarkDirectory(), new WindowsManagedProcessLauncher(),
+                    new PresentMonCsvParser(), LogManager::addLog),
+            new DefaultExperimentalConfigurationService(new DefaultBenchmarkBoostService(),
+                    new WindowsProcessPriorityService(), LogManager::addLog),
+            record -> BenchmarkStore.localAppData().save(record), this::updateBenchmarkState);
     private volatile List<GameProfile> detectedGames = List.of();
     private String lastRunningGameId;
     private final ScheduledExecutorService hardwareExecutor =
@@ -47,14 +73,40 @@ public class MainController {
     @FXML private ComboBox<GameProfile> gameSelector;
     @FXML private Button boostButton;
     @FXML private Button finishButton;
+    @FXML private Button measureButton;
+    @FXML private Label performanceLabStateLabel;
+    @FXML private Label performanceLabResultLabel;
+    @FXML private Label presentMonStatusLabel;
+    @FXML private ComboBox<Integer> benchmarkDuration;
+    @FXML private ComboBox<String> benchmarkMode;
+    @FXML private ComboBox<Integer> benchmarkRuns;
+    @FXML private Button benchmarkButton;
+    @FXML private Button cancelBenchmarkButton;
 
     @FXML
     public void initialize() {
         LogManager.setLogArea(logArea);
+        LogManager.addLog("Oxman elevated: " + (WindowsPrivileges.isElevated(new WindowsCommandRunner()) ? "YES" : "NO"));
         gameSelector.setCellFactory(listView -> createGameCell());
         gameSelector.setButtonCell(createGameCell());
+        benchmarkDuration.getItems().setAll(30, 60, 120);
+        benchmarkDuration.setValue(60);
+        benchmarkMode.getItems().setAll("BOOST NORMAL", "EXPERIMENTO: PRIORIDAD");
+        benchmarkMode.setValue("BOOST NORMAL");
+        benchmarkRuns.getItems().setAll(1, 3, 5);
+        benchmarkRuns.setValue(ExperimentalBenchmarkCoordinator.DEFAULT_RUNS);
+        benchmarkRuns.disableProperty().bind(benchmarkMode.valueProperty().isEqualTo("BOOST NORMAL"));
+        PresentMonDiagnostic diagnostic = PresentMonDiagnostic.inspect(presentMonPath, new WindowsCommandRunner());
+        presentMonStatusLabel.setText("PresentMon: " + diagnostic.status() + " · Version: " + diagnostic.version()
+                + " · Capture test: " + diagnostic.captureTest());
 
         hardwareExecutor.execute(this::loadHardwareInformation);
+        hardwareExecutor.execute(() -> {
+            boolean recovered = GamingSessionManager.recoverIncompleteSession();
+            if (!recovered) Platform.runLater(() -> statusLabel.setText("Restauración pendiente; revisa el registro"));
+        });
+        hardwareExecutor.execute(() -> DefaultExperimentalConfigurationService.recoverIncomplete(
+                new WindowsProcessPriorityService(), LogManager::addLog));
         hardwareExecutor.execute(this::discoverGames);
         hardwareExecutor.scheduleAtFixedRate(
                 this::readHardwareUsage, 500, 1000, TimeUnit.MILLISECONDS);
@@ -174,6 +226,96 @@ public class MainController {
     public void finishGame(ActionEvent event) {
         finishButton.setDisable(true);
         GamingSessionManager.finishManually(this::updateSessionStatus);
+    }
+
+    @FXML
+    public void measureSystemBaseline(ActionEvent event) {
+        measureButton.setDisable(true);
+        performanceLabStateLabel.setText("MEASURING BASELINE");
+        LogManager.addLog("Performance Lab iniciado: midiendo baseline del sistema...");
+        performanceLab.sampleSystem().whenComplete((snapshot, error) -> Platform.runLater(() -> {
+            measureButton.setDisable(false);
+            if (error != null) {
+                performanceLabStateLabel.setText("FAILED");
+                performanceLabResultLabel.setText("No se pudo completar la medición.");
+                LogManager.addLog("Performance Lab falló: " + error.getMessage());
+            } else {
+                performanceLabStateLabel.setText("COMPLETED");
+                performanceLabResultLabel.setText(formatSnapshot(snapshot));
+                LogManager.addLog("Baseline completado con " + snapshot.sampleCount() + " muestras");
+            }
+        }));
+    }
+
+    @FXML
+    public void startBenchmark(ActionEvent event) {
+        GameProfile profile = gameSelector.getValue();
+        if (profile == null) { performanceLabResultLabel.setText("Selecciona un juego."); return; }
+        benchmarkButton.setDisable(true); boostButton.setDisable(true); cancelBenchmarkButton.setDisable(false);
+        gameSelector.setDisable(true);
+        boolean experimental = "EXPERIMENTO: PRIORIDAD".equals(benchmarkMode.getValue());
+        CompletableFuture<?> future = experimental
+                ? experimentalCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue()), benchmarkRuns.getValue())
+                : benchmarkCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue()));
+        future.whenComplete((outcome, error) -> Platform.runLater(() -> {
+                    benchmarkButton.setDisable(false); boostButton.setDisable(false); cancelBenchmarkButton.setDisable(true);
+                    gameSelector.setDisable(false);
+                    if (error != null) performanceLabResultLabel.setText("Benchmark failed: " + rootMessage(error));
+                    else if (outcome instanceof BenchmarkOutcome normal) performanceLabResultLabel.setText(formatOutcome(normal));
+                    else performanceLabResultLabel.setText(formatExperiment((ExperimentResult) outcome));
+                }));
+    }
+
+    @FXML public void cancelBenchmark(ActionEvent event) {
+        benchmarkCoordinator.cancel("cancelled by user");
+        experimentalCoordinator.cancel("cancelled by user");
+    }
+
+    private void updateBenchmarkState(cl.oxman.oxmangameoptimizer.performance.PerformanceLabState state, String message) {
+        Platform.runLater(() -> { performanceLabStateLabel.setText(state.name()); performanceLabResultLabel.setText(message); });
+        if (!message.matches("Capturando (BEFORE|BOOST): \\d+s / \\d+s")) LogManager.addLog(message);
+    }
+
+    public void shutdown() {
+        hardwareExecutor.shutdownNow();
+        benchmarkCoordinator.close();
+        experimentalCoordinator.close();
+    }
+
+    private static Path benchmarkDirectory() {
+        String local = System.getenv("LOCALAPPDATA");
+        Path base = local == null || local.isBlank() ? Path.of(System.getProperty("user.home"), "AppData", "Local") : Path.of(local);
+        return base.resolve("OxmanGameOptimizer").resolve("benchmarks");
+    }
+
+    private static String formatOutcome(BenchmarkOutcome outcome) {
+        var before = outcome.record().before(); var after = outcome.record().after();
+        var systemBefore = outcome.record().systemBefore(); var systemAfter = outcome.record().systemAfter();
+        return String.format("FPS %s → %s | 1%% Low %s → %s | Frame time %s → %s ms%n"
+                        + "CPU %.1f%% → %.1f%% | RAM %.1f → %.1f GB | Procesos %.0f → %.0f | Power %s → %s%n"
+                        + "%s%nResults can vary with gameplay conditions. Repeat the same scenario for higher confidence.",
+                metric(before.averageFps()), metric(after.averageFps()), metric(before.onePercentLow()), metric(after.onePercentLow()),
+                metric(before.averageFrameTimeMs()), metric(after.averageFrameTimeMs()),
+                systemBefore.cpuAverage(), systemAfter.cpuAverage(), systemBefore.ramUsedAverage(), systemAfter.ramUsedAverage(),
+                systemBefore.processCountAverage(), systemAfter.processCountAverage(), systemBefore.activePowerPlan(), systemAfter.activePowerPlan(),
+                outcome.interpretation().message());
+    }
+    private static String metric(java.util.OptionalDouble value) { return value.isPresent() ? String.format("%.1f", value.getAsDouble()) : "N/A"; }
+    private static String formatExperiment(ExperimentResult value) {
+        return String.format("PROCESS PRIORITY EXPERIMENT%nSAFE vs ABOVE NORMAL · Runs: %d%n"
+                        + "Avg FPS %s vs %s | 1%% Low %s vs %s | Frame time %s vs %s ms%n%s%n"
+                        + "Priority change: NORMAL → ABOVE_NORMAL (restaurada después de cada captura)",
+                value.runs().size(), metric(value.safe().averageFps().mean()), metric(value.aboveNormal().averageFps().mean()),
+                metric(value.safe().onePercentLow().mean()), metric(value.aboveNormal().onePercentLow().mean()),
+                metric(value.safe().frameTime().mean()), metric(value.aboveNormal().frameTime().mean()),
+                value.interpretation().message());
+    }
+    private static String rootMessage(Throwable error) { while (error.getCause() != null) error = error.getCause(); return error.getMessage(); }
+
+    private static String formatSnapshot(PerformanceSnapshot snapshot) {
+        return String.format("CPU %.1f%% (%.1f–%.1f)  |  RAM %.1f GB  |  Procesos %.0f  |  %s",
+                snapshot.cpuAverage(), snapshot.cpuMinimum(), snapshot.cpuMaximum(),
+                snapshot.ramUsedAverage(), snapshot.processCountAverage(), snapshot.activePowerPlan());
     }
 
     private void updateSessionStatus(String status) {

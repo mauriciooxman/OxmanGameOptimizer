@@ -69,6 +69,22 @@
 
     <Label fx:id="statusLabel" text="🟢 Sistema óptimo" styleClass="status"/>
 
+    <VBox spacing="5" styleClass="system-card" maxWidth="Infinity">
+        <HBox alignment="CENTER_LEFT" spacing="12">
+            <Label text="PERFORMANCE LAB" styleClass="section"/>
+            <Label fx:id="performanceLabStateLabel" text="IDLE" styleClass="section-small"/>
+            <Button fx:id="measureButton" text="MEDIR SISTEMA" onAction="#measureSystemBaseline"/>
+            <ComboBox fx:id="benchmarkMode" prefWidth="185"/>
+            <ComboBox fx:id="benchmarkRuns" prefWidth="68"/>
+            <ComboBox fx:id="benchmarkDuration" prefWidth="78"/>
+            <Button fx:id="benchmarkButton" text="INICIAR TEST" onAction="#startBenchmark"/>
+            <Button fx:id="cancelBenchmarkButton" text="CANCELAR" disable="true" onAction="#cancelBenchmark"/>
+        </HBox>
+        <Label fx:id="performanceLabResultLabel"
+               text="Baseline de 10 segundos · 20 muestras · no estima FPS" wrapText="true"/>
+        <Label fx:id="presentMonStatusLabel" text="PresentMon: comprobando..." styleClass="hardware-info"/>
+    </VBox>
+
     <HBox alignment="CENTER" spacing="10">
         <ComboBox fx:id="gameSelector" prefWidth="250" promptText="Detectando juegos..."/>
         <Button fx:id="boostButton" text="🚀 BOOST FPS" prefWidth="190" prefHeight="44"
