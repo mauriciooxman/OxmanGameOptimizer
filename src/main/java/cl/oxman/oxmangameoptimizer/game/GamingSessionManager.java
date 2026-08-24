@@ -1,6 +1,8 @@
 package cl.oxman.oxmangameoptimizer.game;
 
 import cl.oxman.oxmangameoptimizer.optimizer.BoostOptimizer;
+import cl.oxman.oxmangameoptimizer.optimizer.OptimizationReport;
+import cl.oxman.oxmangameoptimizer.ui.ClientSessionStatus;
 import cl.oxman.oxmangameoptimizer.ui.LogManager;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,15 +51,16 @@ public final class GamingSessionManager {
 
     private static void runSession(GameProfile profile, Consumer<String> statusCallback) {
         statusCallback.accept("Aplicando perfil para " + profile);
-        BoostOptimizer.applyBoost(profile.toString());
+        OptimizationReport report = BoostOptimizer.applyBoost(profile.toString());
+        statusCallback.accept(ClientSessionStatus.afterOptimization(report));
 
+        statusCallback.accept(ClientSessionStatus.starting(profile.toString()));
         LogManager.addClientLog("Abriendo " + profile + "...");
         boolean launched = profile.launch();
         if (!launched) {
             LogManager.addClientLog("Abre el juego manualmente; Oxman lo detectará automáticamente.");
         }
 
-        statusCallback.accept("Esperando que inicie " + profile);
         if (!waitForStart(profile, 120)) {
             if (profile.equals(GameProfile.VALORANT)) {
                 LogManager.addLog("⚠ Riot Client no respondió. Ciérralo desde la bandeja");
@@ -71,7 +74,7 @@ public final class GamingSessionManager {
         }
 
         LogManager.addClientLog(profile + " detectado. El sistema está listo para jugar.");
-        statusCallback.accept(profile + " en ejecución");
+        statusCallback.accept(ClientSessionStatus.running(profile.toString()));
 
         while (SESSION_ACTIVE.get() && profile.isRunning()) {
             if (!sleepSeconds(3)) {

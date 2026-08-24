@@ -405,8 +405,8 @@ public class MainController {
     private void updateSessionStatus(String status) {
         Platform.runLater(() -> {
             if (status.startsWith("Aplicando")) setPrimaryStatus(PrimaryStatus.OPTIMIZING, "Aplicando optimizaciones seguras");
-            else if (status.startsWith("Esperando") || status.endsWith("en ejecución"))
-                setPrimaryStatus(PrimaryStatus.OPTIMIZED, status);
+            else if (status.equals("OPTIMIZACIÓN ACTIVA") || status.startsWith("SISTEMA LISTO")
+                    || status.startsWith("LISTO PARA JUGAR")) statusLabel.setText(status);
             else if (status.startsWith("Restaurando")) setPrimaryStatus(PrimaryStatus.RESTORING, "Restaurando sistema");
             else if ("Windows restaurado".equals(status)) setPrimaryStatus(PrimaryStatus.RESTORED, null);
             else if ("Restauración pendiente".equals(status)) setPrimaryStatus(PrimaryStatus.ERROR, status);
