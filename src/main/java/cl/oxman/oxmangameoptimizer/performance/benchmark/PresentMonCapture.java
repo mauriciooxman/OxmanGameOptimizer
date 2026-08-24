@@ -65,8 +65,14 @@ public final class PresentMonCapture implements GamePerformanceCapture {
 
     public static Path configuredExecutable() {
         String configured = System.getenv("OXMAN_PRESENTMON");
-        return configured != null && !configured.isBlank() ? Path.of(configured)
-                : Path.of("tools", "PresentMon.exe").toAbsolutePath();
+        if (configured != null && !configured.isBlank()) return Path.of(configured);
+
+        String packagedLauncher = System.getProperty("jpackage.app-path");
+        if (packagedLauncher != null && !packagedLauncher.isBlank()) {
+            Path launcherDirectory = Path.of(packagedLauncher).toAbsolutePath().getParent();
+            if (launcherDirectory != null) return launcherDirectory.resolve("tools").resolve("PresentMon.exe");
+        }
+        return Path.of("tools", "PresentMon.exe").toAbsolutePath();
     }
 
     public boolean isAvailable() { return Files.isRegularFile(executable); }

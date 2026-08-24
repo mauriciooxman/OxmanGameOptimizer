@@ -33,8 +33,12 @@ Benchmarks, snapshots experimentales y estado de recuperación se almacenan en `
 
 Oxman v1.0 no desactiva Microsoft Defender ni Windows Update; no modifica HPET, pagefile o afinidad; no ejecuta ajustes con `bcdedit`; no aplica prioridades HIGH o REALTIME; no realiza ajustes agresivos del registro ni mata aplicaciones del usuario.
 
-## Ejecución
+## Ejecución (distribución portable para clientes)
 
-Requiere Windows y Java 22 o superior. Mantenga juntos `INICIAR-OXMAN.bat`, `OxmanGameOptimizer-1.0.0.jar`, `standalone-libs/`, `tools/PresentMon.exe`, este README y los avisos de terceros. Ejecute `INICIAR-OXMAN.bat`; Windows solicitará elevación para que PresentMon pueda abrir la sesión ETW.
+Extraiga la carpeta completa y haga doble clic en `Oxman Game Optimizer.exe`. Acepte la solicitud UAC de Windows. La distribución incluye su propio runtime Java y `tools/PresentMon.exe`; no necesita instalar Java, Maven, un JDK ni usar archivos `.jar` o `.bat`.
+
+No mueva el ejecutable fuera de su carpeta ni separe las carpetas `app/`, `runtime/` y `tools/`.
+
+`INICIAR-OXMAN.bat` se conserva solamente como alternativa de desarrollo y no forma parte de la distribución portable para clientes.
 
 PresentMon es un componente de terceros. Consulte [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
