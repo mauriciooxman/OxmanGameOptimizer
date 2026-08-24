@@ -28,6 +28,7 @@ public final class BenchmarkStore {
                 ",\n" + text("experimentType", record.experimentType()) +
                 ",\n  \"runNumber\": " + record.runNumber() +
                 ",\n" + text("runOrder", record.runOrder()) +
+                ",\n" + text("configurationValidity", record.configurationValidity().name()) +
                 ",\n  \"activeOptimizationNames\": [" + record.activeOptimizationNames().stream()
                 .map(value -> "\"" + escape(value) + "\"").collect(java.util.stream.Collectors.joining(",")) + "]" +
                 ",\n  \"captureDurationSeconds\": " + record.captureDuration().toSeconds() +

@@ -40,6 +40,7 @@ META-INF/git rm -r --cached installer
 .DS_Store
 
 /.m2/
+/.maven-release-cache/
 /release*/
 
 # Local development dependency; do not redistribute without a packaging policy.

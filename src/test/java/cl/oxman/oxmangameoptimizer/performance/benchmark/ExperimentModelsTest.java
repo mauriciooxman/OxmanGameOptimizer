@@ -19,7 +19,7 @@ class ExperimentModelsTest {
     }
     @Test void alternatesAbBaReproducibly() {
         assertEquals(ExperimentConfiguration.SAFE, ExperimentOrder.forRun(1).first());
-        assertEquals(ExperimentConfiguration.SAFE_PLUS_ABOVE_NORMAL, ExperimentOrder.forRun(2).first());
+        assertEquals(ExperimentConfiguration.SAFE_PLUS_HIGH_QOS, ExperimentOrder.forRun(2).first());
         assertEquals(ExperimentOrder.forRun(1), ExperimentOrder.forRun(3));
     }
     @Test void consistentThreeRunImprovementIsLikelyImprovement() {
@@ -35,6 +35,15 @@ class ExperimentModelsTest {
         GamePerformanceResult missing = result(OptionalDouble.empty(), 50, 10);
         assertEquals(ExperimentInterpretation.INSUFFICIENT_DATA, ExperimentResult.analyze(List.of(
                 new ExperimentRun(1, ExperimentOrder.forRun(1), missing, missing))).interpretation());
+    }
+    @Test void noChangeIsNeverInterpretedAsImprovementOrRegressionAndIsExcluded() {
+        ExperimentRun noChange = new ExperimentRun(1, ExperimentOrder.forRun(1),
+                result(OptionalDouble.of(100), 50, 10), result(OptionalDouble.of(150), 70, 7),
+                ConfigurationValidity.NO_CHANGE);
+        ExperimentResult analyzed = ExperimentResult.analyze(List.of(noChange));
+        assertEquals(ExperimentInterpretation.NO_CHANGE, analyzed.interpretation());
+        assertEquals(0, analyzed.safe().averageFps().count());
+        assertEquals(0, analyzed.highQos().averageFps().count());
     }
     private static ExperimentRun run(int number, double safe, double priority) {
         return new ExperimentRun(number, ExperimentOrder.forRun(number), result(OptionalDouble.of(safe), 50, 1000 / safe),

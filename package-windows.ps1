@@ -2,31 +2,23 @@ $ErrorActionPreference = "Stop"
 
 $projectRoot = $PSScriptRoot
 $targetDir = Join-Path $projectRoot "target"
-$inputDir = Join-Path $targetDir "jpackage-input"
-$outputDir = Join-Path $targetDir "release"
-$icon = Join-Path $projectRoot "src\main\resources\cl\oxman\oxmangameoptimizer\company-logo-gold.ico"
-$jpackage = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME "bin\jpackage.exe" } else { "jpackage.exe" }
+$releaseDir = Join-Path $targetDir "release\OxmanGameOptimizer"
+$jarName = "OxmanGameOptimizer-1.0.0.jar"
 
-& (Join-Path $projectRoot "mvnw.cmd") clean package dependency:copy-dependencies `
-    "-DoutputDirectory=$inputDir" "-DincludeScope=runtime"
+& (Join-Path $projectRoot "mvnw.cmd") clean package
 if ($LASTEXITCODE -ne 0) { throw "Maven no pudo construir la aplicacion." }
-if (-not (Get-Command $jpackage -ErrorAction SilentlyContinue)) {
-    throw "No se encontro jpackage. Configura JAVA_HOME con la ruta de un JDK 22 o superior."
+
+$presentMon = Join-Path $projectRoot "tools\PresentMon.exe"
+if (-not (Test-Path -LiteralPath $presentMon -PathType Leaf)) {
+    throw "Falta tools\PresentMon.exe; no se puede preparar la release."
 }
 
-Copy-Item (Join-Path $targetDir "OxmanGameOptimizer-1.0-SNAPSHOT.jar") $inputDir -Force
-New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $releaseDir "tools") -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $targetDir $jarName) -Destination $releaseDir -Force
+Copy-Item -LiteralPath (Join-Path $targetDir "standalone-libs") -Destination $releaseDir -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "INICIAR-OXMAN.bat") -Destination $releaseDir -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "README.md") -Destination $releaseDir -Force
+Copy-Item -LiteralPath (Join-Path $projectRoot "THIRD-PARTY-NOTICES.md") -Destination $releaseDir -Force
+Copy-Item -LiteralPath $presentMon -Destination (Join-Path $releaseDir "tools\PresentMon.exe") -Force
 
-& $jpackage `
-    --type app-image `
-    --name OxmanGameOptimizer `
-    --dest $outputDir `
-    --input $inputDir `
-    --main-jar OxmanGameOptimizer-1.0-SNAPSHOT.jar `
-    --main-class cl.oxman.oxmangameoptimizer.ApplicationLauncher `
-    --icon $icon `
-    --vendor Oxman `
-    --app-version 1.0
-if ($LASTEXITCODE -ne 0) { throw "jpackage no pudo crear el ejecutable." }
-
-Write-Host "Ejecutable creado en $outputDir\OxmanGameOptimizer\OxmanGameOptimizer.exe"
+Write-Host "Release standalone creada en $releaseDir"

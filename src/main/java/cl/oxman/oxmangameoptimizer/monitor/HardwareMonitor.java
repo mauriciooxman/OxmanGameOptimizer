@@ -5,20 +5,60 @@ import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
 import oshi.hardware.GraphicsCard;
 import oshi.hardware.HardwareAbstractionLayer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HardwareMonitor {
 
-    private static final SystemInfo systemInfo = new SystemInfo();
-
-    private static final HardwareAbstractionLayer hardware =
-            systemInfo.getHardware();
-
-    private static final CentralProcessor processor =
-            hardware.getProcessor();
+    private static final Logger LOG = LoggerFactory.getLogger(HardwareMonitor.class);
+    private static final Initialization INITIALIZATION = initialize();
 
     // Guarda la lectura anterior para calcular el uso de CPU
-    private static long[] previousTicks =
-            processor.getSystemCpuLoadTicks();
+    private static long[] previousTicks = INITIALIZATION.previousTicks();
+
+    private static Initialization initialize() {
+        try {
+            SystemInfo systemInfo = new SystemInfo();
+            HardwareAbstractionLayer hardware = systemInfo.getHardware();
+            CentralProcessor processor = hardware.getProcessor();
+            return new Initialization(systemInfo, hardware, processor, processor.getSystemCpuLoadTicks(), null);
+        } catch (Throwable error) {
+            LOG.error("HardwareMonitor initialization failed. Root cause: {}", rootCauseMessage(error), error);
+            return new Initialization(null, null, null, null, error);
+        }
+    }
+
+    private static SystemInfo systemInfo() {
+        ensureInitialized();
+        return INITIALIZATION.systemInfo();
+    }
+
+    private static HardwareAbstractionLayer hardware() {
+        ensureInitialized();
+        return INITIALIZATION.hardware();
+    }
+
+    private static CentralProcessor processor() {
+        ensureInitialized();
+        return INITIALIZATION.processor();
+    }
+
+    private static void ensureInitialized() {
+        if (INITIALIZATION.failure() != null) {
+            throw new IllegalStateException("HardwareMonitor initialization failed: "
+                    + rootCauseMessage(INITIALIZATION.failure()), INITIALIZATION.failure());
+        }
+    }
+
+    private static String rootCauseMessage(Throwable error) {
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        String message = root.getMessage();
+        return root.getClass().getName() + (message == null || message.isBlank() ? "" : ": " + message);
+    }
+
+    private record Initialization(SystemInfo systemInfo, HardwareAbstractionLayer hardware,
+                                  CentralProcessor processor, long[] previousTicks, Throwable failure) { }
 
     /*
      * =========================================
@@ -28,7 +68,7 @@ public class HardwareMonitor {
 
     public static String getCpuName() {
 
-        return processor
+        return processor()
                 .getProcessorIdentifier()
                 .getName();
 
@@ -37,10 +77,10 @@ public class HardwareMonitor {
     public static synchronized double getCpuUsage() {
 
         double load =
-                processor.getSystemCpuLoadBetweenTicks(previousTicks);
+                processor().getSystemCpuLoadBetweenTicks(previousTicks);
 
         previousTicks =
-                processor.getSystemCpuLoadTicks();
+                processor().getSystemCpuLoadTicks();
 
         return load * 100.0;
 
@@ -48,19 +88,19 @@ public class HardwareMonitor {
 
     public static int getPhysicalCores() {
 
-        return processor.getPhysicalProcessorCount();
+        return processor().getPhysicalProcessorCount();
 
     }
 
     public static int getLogicalCores() {
 
-        return processor.getLogicalProcessorCount();
+        return processor().getLogicalProcessorCount();
 
     }
 
     public static double getMaxFrequencyGHz() {
 
-        long hz = processor.getMaxFreq();
+        long hz = processor().getMaxFreq();
 
         if (hz <= 0) {
 
@@ -80,7 +120,7 @@ public class HardwareMonitor {
 
     public static double getRamUsage() {
 
-        GlobalMemory memory = hardware.getMemory();
+        GlobalMemory memory = hardware().getMemory();
 
         long total = memory.getTotal();
         long available = memory.getAvailable();
@@ -91,14 +131,14 @@ public class HardwareMonitor {
 
     public static double getTotalRamGB() {
 
-        return hardware.getMemory().getTotal()
+        return hardware().getMemory().getTotal()
                 / 1024.0 / 1024.0 / 1024.0;
 
     }
 
     public static double getUsedRamGB() {
 
-        GlobalMemory memory = hardware.getMemory();
+        GlobalMemory memory = hardware().getMemory();
 
         long total = memory.getTotal();
         long available = memory.getAvailable();
@@ -116,13 +156,13 @@ public class HardwareMonitor {
 
     public static String getGpuName() {
 
-        if (hardware.getGraphicsCards().isEmpty()) {
+        if (hardware().getGraphicsCards().isEmpty()) {
 
             return "No detectada";
 
         }
 
-        GraphicsCard gpu = hardware.getGraphicsCards().getFirst();
+        GraphicsCard gpu = hardware().getGraphicsCards().getFirst();
 
         return gpu.getName();
 
@@ -136,13 +176,13 @@ public class HardwareMonitor {
 
     public static String getDiskName() {
 
-        if (hardware.getDiskStores().isEmpty()) {
+        if (hardware().getDiskStores().isEmpty()) {
 
             return "No detectado";
 
         }
 
-        return hardware
+        return hardware()
                 .getDiskStores()
                 .getFirst()
                 .getModel();
@@ -157,7 +197,7 @@ public class HardwareMonitor {
 
     public static String getOperatingSystem() {
 
-        return systemInfo
+        return systemInfo()
                 .getOperatingSystem()
                 .toString();
 
@@ -172,7 +212,7 @@ public class HardwareMonitor {
     // Memoria RAM libre
     public static double getAvailableRamGB() {
 
-        return hardware.getMemory().getAvailable()
+        return hardware().getMemory().getAvailable()
                 / 1024.0 / 1024.0 / 1024.0;
 
     }
@@ -194,7 +234,7 @@ public class HardwareMonitor {
     // Nombre del fabricante del CPU
     public static String getCpuVendor() {
 
-        return processor
+        return processor()
                 .getProcessorIdentifier()
                 .getVendor();
 

@@ -11,7 +11,7 @@
 }
 
 .logo-halo {
-    -fx-padding: 7;
+    -fx-padding: 6;
     -fx-background-color: rgba(255, 193, 7, 0.08);
     -fx-background-radius: 24;
     -fx-border-color: rgba(255, 193, 7, 0.65);
@@ -21,11 +21,11 @@
 }
 
 .brand-header {
-    -fx-padding: 2 8 6 8;
+    -fx-padding: 0 8 2 8;
 }
 
 .metric-card, .system-card {
-    -fx-padding: 12;
+    -fx-padding: 8 10;
     -fx-background-color: rgba(20, 20, 20, 0.82);
     -fx-background-radius: 12;
     -fx-border-color: rgba(255, 193, 7, 0.28);
@@ -36,6 +36,63 @@
     -fx-font-size: 11px;
     -fx-font-weight: bold;
     -fx-text-fill: #FFC107;
+}
+
+.control-label {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #AFAFAF;
+}
+
+.lab-state {
+    -fx-padding: 3 9;
+    -fx-background-color: #3A300E;
+    -fx-background-radius: 10;
+    -fx-border-color: #C8A44D;
+    -fx-border-radius: 10;
+    -fx-text-fill: #FFE082;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.diagnostic-box {
+    -fx-padding: 5 9;
+    -fx-background-color: #111111;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(255, 193, 7, 0.28);
+    -fx-border-radius: 8;
+}
+
+.diagnostic-separator {
+    -fx-text-fill: #C8A44D;
+    -fx-font-weight: bold;
+}
+
+.main-scroll {
+    -fx-background-color: #0F0F0F;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.main-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.main-scroll > .corner,
+.main-scroll .scroll-bar,
+.main-scroll .scroll-bar .track,
+.main-scroll .scroll-bar .track-background {
+    -fx-background-color: #0F0F0F;
+}
+
+.main-scroll .scroll-bar .thumb {
+    -fx-background-color: #5E4B12;
+    -fx-background-radius: 8;
+}
+
+.oxman-content {
+    -fx-background-color:
+        radial-gradient(center 50% 5%, radius 70%, #24200F, #111111 55%, #080808);
 }
 
 /* -------------------------------------------
@@ -195,6 +252,8 @@
 
     -fx-font-family: "Consolas";
 
+    -fx-padding: 6;
+
 }
 
 .hardware-info{
@@ -217,6 +276,11 @@
     -fx-border-radius: 9;
     -fx-background-radius: 9;
     -fx-font-size: 14px;
+}
+
+.performance-lab .button {
+    -fx-min-height: 38px;
+    -fx-padding: 7 14;
 }
 
 .combo-box .list-cell {

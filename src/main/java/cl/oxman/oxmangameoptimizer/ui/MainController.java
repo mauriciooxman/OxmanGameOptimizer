@@ -10,6 +10,7 @@ import cl.oxman.oxmangameoptimizer.system.WindowsCommandRunner;
 import cl.oxman.oxmangameoptimizer.system.WindowsManagedProcessLauncher;
 import cl.oxman.oxmangameoptimizer.system.WindowsPrivileges;
 import cl.oxman.oxmangameoptimizer.system.WindowsProcessPriorityService;
+import cl.oxman.oxmangameoptimizer.system.WindowsProcessPowerThrottlingService;
 import cl.oxman.oxmangameoptimizer.performance.benchmark.*;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -20,6 +21,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
+import javafx.util.StringConverter;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
@@ -42,13 +44,31 @@ public class MainController {
             new DefaultBenchmarkBoostService(),
             record -> BenchmarkStore.localAppData().save(record),
             this::updateBenchmarkState);
-    private final ExperimentalBenchmarkCoordinator experimentalCoordinator = new ExperimentalBenchmarkCoordinator(
+    private final ExperimentalBenchmarkCoordinator priorityExperimentCoordinator = new ExperimentalBenchmarkCoordinator(
             performanceLab,
             new PresentMonCapture(presentMonPath, benchmarkDirectory(), new WindowsManagedProcessLauncher(),
                     new PresentMonCsvParser(), LogManager::addLog),
             new DefaultExperimentalConfigurationService(new DefaultBenchmarkBoostService(),
                     new WindowsProcessPriorityService(), LogManager::addLog),
-            record -> BenchmarkStore.localAppData().save(record), this::updateBenchmarkState);
+            record -> BenchmarkStore.localAppData().save(record), this::updateBenchmarkState,
+            ExperimentConfiguration.SAFE_PLUS_ABOVE_NORMAL);
+    private final ExperimentalBenchmarkCoordinator highQosExperimentCoordinator = new ExperimentalBenchmarkCoordinator(
+            performanceLab,
+            new PresentMonCapture(presentMonPath, benchmarkDirectory(), new WindowsManagedProcessLauncher(),
+                    new PresentMonCsvParser(), LogManager::addLog),
+            new DefaultExperimentalConfigurationService(new DefaultBenchmarkBoostService(),
+                    new WindowsProcessPowerThrottlingService(), LogManager::addLog),
+            record -> BenchmarkStore.localAppData().save(record), this::updateBenchmarkState,
+            ExperimentConfiguration.SAFE_PLUS_HIGH_QOS);
+    private final ExperimentalBenchmarkCoordinator backgroundExperimentCoordinator = new ExperimentalBenchmarkCoordinator(
+            performanceLab,
+            new PresentMonCapture(presentMonPath, benchmarkDirectory(), new WindowsManagedProcessLauncher(),
+                    new PresentMonCsvParser(), LogManager::addLog),
+            new DefaultExperimentalConfigurationService(new DefaultBenchmarkBoostService(),
+                    new DefaultBackgroundLoadGuard(new WindowsBackgroundProcessSource(), new BackgroundProcessSelector(),
+                            new WindowsProcessPowerThrottlingService(), LogManager::addLog), LogManager::addLog),
+            record -> BenchmarkStore.localAppData().save(record), this::updateBenchmarkState,
+            ExperimentConfiguration.SAFE_PLUS_BACKGROUND_ECOQOS);
     private volatile List<GameProfile> detectedGames = List.of();
     private String lastRunningGameId;
     private final ScheduledExecutorService hardwareExecutor =
@@ -78,7 +98,7 @@ public class MainController {
     @FXML private Label performanceLabResultLabel;
     @FXML private Label presentMonStatusLabel;
     @FXML private ComboBox<Integer> benchmarkDuration;
-    @FXML private ComboBox<String> benchmarkMode;
+    @FXML private ComboBox<BenchmarkMode> benchmarkMode;
     @FXML private ComboBox<Integer> benchmarkRuns;
     @FXML private Button benchmarkButton;
     @FXML private Button cancelBenchmarkButton;
@@ -91,11 +111,15 @@ public class MainController {
         gameSelector.setButtonCell(createGameCell());
         benchmarkDuration.getItems().setAll(30, 60, 120);
         benchmarkDuration.setValue(60);
-        benchmarkMode.getItems().setAll("BOOST NORMAL", "EXPERIMENTO: PRIORIDAD");
-        benchmarkMode.setValue("BOOST NORMAL");
+        benchmarkDuration.setConverter(new StringConverter<>() {
+            @Override public String toString(Integer seconds) { return seconds == null ? "" : seconds + " s"; }
+            @Override public Integer fromString(String value) { return Integer.valueOf(value.replace("s", "").trim()); }
+        });
+        benchmarkMode.getItems().setAll(BenchmarkMode.values());
+        benchmarkMode.setValue(BenchmarkMode.NORMAL);
         benchmarkRuns.getItems().setAll(1, 3, 5);
         benchmarkRuns.setValue(ExperimentalBenchmarkCoordinator.DEFAULT_RUNS);
-        benchmarkRuns.disableProperty().bind(benchmarkMode.valueProperty().isEqualTo("BOOST NORMAL"));
+        benchmarkRuns.disableProperty().bind(benchmarkMode.valueProperty().isEqualTo(BenchmarkMode.NORMAL));
         PresentMonDiagnostic diagnostic = PresentMonDiagnostic.inspect(presentMonPath, new WindowsCommandRunner());
         presentMonStatusLabel.setText("PresentMon: " + diagnostic.status() + " · Version: " + diagnostic.version()
                 + " · Capture test: " + diagnostic.captureTest());
@@ -107,6 +131,10 @@ public class MainController {
         });
         hardwareExecutor.execute(() -> DefaultExperimentalConfigurationService.recoverIncomplete(
                 new WindowsProcessPriorityService(), LogManager::addLog));
+        hardwareExecutor.execute(() -> DefaultExperimentalConfigurationService.recoverIncomplete(
+                new WindowsProcessPowerThrottlingService(), LogManager::addLog));
+        hardwareExecutor.execute(() -> DefaultBackgroundLoadGuard.recoverIncomplete(
+                new WindowsProcessPowerThrottlingService(), LogManager::addLog));
         hardwareExecutor.execute(this::discoverGames);
         hardwareExecutor.scheduleAtFixedRate(
                 this::readHardwareUsage, 500, 1000, TimeUnit.MILLISECONDS);
@@ -253,22 +281,26 @@ public class MainController {
         if (profile == null) { performanceLabResultLabel.setText("Selecciona un juego."); return; }
         benchmarkButton.setDisable(true); boostButton.setDisable(true); cancelBenchmarkButton.setDisable(false);
         gameSelector.setDisable(true);
-        boolean experimental = "EXPERIMENTO: PRIORIDAD".equals(benchmarkMode.getValue());
-        CompletableFuture<?> future = experimental
-                ? experimentalCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue()), benchmarkRuns.getValue())
-                : benchmarkCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue()));
+        BenchmarkMode selectedMode = benchmarkMode.getValue();
+        CompletableFuture<?> future = dispatchBenchmark(selectedMode,
+                () -> benchmarkCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue())),
+                () -> priorityExperimentCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue()), benchmarkRuns.getValue()),
+                () -> highQosExperimentCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue()), benchmarkRuns.getValue()),
+                () -> backgroundExperimentCoordinator.start(profile, Duration.ofSeconds(benchmarkDuration.getValue()), benchmarkRuns.getValue()));
         future.whenComplete((outcome, error) -> Platform.runLater(() -> {
                     benchmarkButton.setDisable(false); boostButton.setDisable(false); cancelBenchmarkButton.setDisable(true);
                     gameSelector.setDisable(false);
                     if (error != null) performanceLabResultLabel.setText("Benchmark failed: " + rootMessage(error));
                     else if (outcome instanceof BenchmarkOutcome normal) performanceLabResultLabel.setText(formatOutcome(normal));
-                    else performanceLabResultLabel.setText(formatExperiment((ExperimentResult) outcome));
+                    else performanceLabResultLabel.setText(formatExperiment((ExperimentResult) outcome, selectedMode));
                 }));
     }
 
     @FXML public void cancelBenchmark(ActionEvent event) {
         benchmarkCoordinator.cancel("cancelled by user");
-        experimentalCoordinator.cancel("cancelled by user");
+        priorityExperimentCoordinator.cancel("cancelled by user");
+        highQosExperimentCoordinator.cancel("cancelled by user");
+        backgroundExperimentCoordinator.cancel("cancelled by user");
     }
 
     private void updateBenchmarkState(cl.oxman.oxmangameoptimizer.performance.PerformanceLabState state, String message) {
@@ -279,7 +311,9 @@ public class MainController {
     public void shutdown() {
         hardwareExecutor.shutdownNow();
         benchmarkCoordinator.close();
-        experimentalCoordinator.close();
+        priorityExperimentCoordinator.close();
+        highQosExperimentCoordinator.close();
+        backgroundExperimentCoordinator.close();
     }
 
     private static Path benchmarkDirectory() {
@@ -301,14 +335,45 @@ public class MainController {
                 outcome.interpretation().message());
     }
     private static String metric(java.util.OptionalDouble value) { return value.isPresent() ? String.format("%.1f", value.getAsDouble()) : "N/A"; }
-    private static String formatExperiment(ExperimentResult value) {
-        return String.format("PROCESS PRIORITY EXPERIMENT%nSAFE vs ABOVE NORMAL · Runs: %d%n"
+    private static String formatExperiment(ExperimentResult value, BenchmarkMode mode) {
+        if (value.interpretation() == ExperimentInterpretation.NO_CHANGE)
+            return (mode == BenchmarkMode.BACKGROUND ? "BACKGROUND LOAD GUARD" : "PROCESS POWER THROTTLING")
+                    + "\nResultado: NO_CHANGE\n" + (mode == BenchmarkMode.BACKGROUND
+                    ? "No hay candidatos seguros que requieran EcoQoS. No se realizó captura B."
+                    : value.interpretation().message());
+        if (mode == BenchmarkMode.BACKGROUND)
+            return String.format("BACKGROUND LOAD GUARD EXPERIMENT%nSAFE vs SAFE + BACKGROUND ECOQOS · Runs: %d%n"
+                            + "Avg FPS %s vs %s | 1%% Low %s vs %s | Frame time %s vs %s ms%n%s%n"
+                            + "Game unchanged. Background process states restored after each capture.",
+                    value.runs().size(), metric(value.safe().averageFps().mean()), metric(value.highQos().averageFps().mean()),
+                    metric(value.safe().onePercentLow().mean()), metric(value.highQos().onePercentLow().mean()),
+                    metric(value.safe().frameTime().mean()), metric(value.highQos().frameTime().mean()), value.interpretation().message());
+        boolean highQos = mode == BenchmarkMode.HIGH_QOS;
+        String title = highQos ? "PROCESS POWER THROTTLING EXPERIMENT" : "PROCESS PRIORITY EXPERIMENT";
+        String comparison = highQos ? "SAFE vs HIGH QOS" : "SAFE vs ABOVE NORMAL";
+        String detail = highQos
+                ? "Power throttling: EXECUTION_SPEED disabled (estado anterior restaurado después de cada captura). Priority class unchanged."
+                : "Priority change: NORMAL -> ABOVE_NORMAL (restaurada después de cada captura)";
+        return String.format("%s%n%s · Runs: %d%n"
                         + "Avg FPS %s vs %s | 1%% Low %s vs %s | Frame time %s vs %s ms%n%s%n"
-                        + "Priority change: NORMAL → ABOVE_NORMAL (restaurada después de cada captura)",
-                value.runs().size(), metric(value.safe().averageFps().mean()), metric(value.aboveNormal().averageFps().mean()),
-                metric(value.safe().onePercentLow().mean()), metric(value.aboveNormal().onePercentLow().mean()),
-                metric(value.safe().frameTime().mean()), metric(value.aboveNormal().frameTime().mean()),
-                value.interpretation().message());
+                        + "%s",
+                title, comparison, value.runs().size(), metric(value.safe().averageFps().mean()), metric(value.highQos().averageFps().mean()),
+                metric(value.safe().onePercentLow().mean()), metric(value.highQos().onePercentLow().mean()),
+                metric(value.safe().frameTime().mean()), metric(value.highQos().frameTime().mean()),
+                value.interpretation().message(), detail);
+    }
+    static CompletableFuture<?> dispatchBenchmark(BenchmarkMode mode,
+            java.util.function.Supplier<? extends CompletableFuture<?>> normal,
+            java.util.function.Supplier<? extends CompletableFuture<?>> priority,
+            java.util.function.Supplier<? extends CompletableFuture<?>> highQos,
+            java.util.function.Supplier<? extends CompletableFuture<?>> background) {
+        if (mode == null) return CompletableFuture.failedFuture(new IllegalArgumentException("Selecciona un tipo de benchmark"));
+        return switch (mode) {
+            case NORMAL -> normal.get();
+            case PROCESS_PRIORITY -> priority.get();
+            case HIGH_QOS -> highQos.get();
+            case BACKGROUND -> background.get();
+        };
     }
     private static String rootMessage(Throwable error) { while (error.getCause() != null) error = error.getCause(); return error.getMessage(); }
 

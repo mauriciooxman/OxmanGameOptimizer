@@ -187,7 +187,7 @@ public final class BenchmarkSessionCoordinator implements AutoCloseable {
         PerformanceInterpretation interpretation = PerformanceInterpretation.from(gaming, report.applied());
         BenchmarkRecord record = new BenchmarkRecord("BASELINE_VS_SAFE_BOOST", game.gameName(),
                 both.after().game().processName(), Instant.now(), duration, both.before().capture().game(), both.after().game(),
-                both.before().capture().system(), both.after().system(), report, report.applied(), "1.0", System.getProperty("os.name") + " " + System.getProperty("os.version"));
+                both.before().capture().system(), both.after().system(), report, report.applied(), "1.0.0", System.getProperty("os.name") + " " + System.getProperty("os.version"));
         return new BenchmarkOutcome(record, gaming, system, interpretation, false);
     }
 

@@ -6,8 +6,10 @@ import cl.oxman.oxmangameoptimizer.ui.MainController;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -20,7 +22,7 @@ public class OxmanApplication extends Application {
         FXMLLoader fxmlLoader =
                 new FXMLLoader(OxmanApplication.class.getResource("main-view.fxml"));
 
-        Scene scene = new Scene(fxmlLoader.load(), 720, 900);
+        Scene scene = new Scene(fxmlLoader.load());
         MainController controller = fxmlLoader.getController();
 
         // Cargar CSS
@@ -36,8 +38,11 @@ public class OxmanApplication extends Application {
         ));
 
         stage.setScene(scene);
-        stage.setMinWidth(660);
-        stage.setMinHeight(720);
+        Rectangle2D screen = Screen.getPrimary().getVisualBounds();
+        stage.setMinWidth(Math.min(1120, screen.getWidth()));
+        stage.setMinHeight(Math.min(720, screen.getHeight()));
+        stage.setWidth(Math.min(1380, screen.getWidth() * 0.92));
+        stage.setHeight(Math.min(880, screen.getHeight() * 0.90));
         Platform.setImplicitExit(false);
         TrayManager.initialize(stage, () -> {
             GamingSessionManager.finishBeforeExit();

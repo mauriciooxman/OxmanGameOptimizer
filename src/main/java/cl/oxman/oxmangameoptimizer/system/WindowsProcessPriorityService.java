@@ -27,15 +27,21 @@ public final class WindowsProcessPriorityService implements ProcessPriorityContr
     }
 
     @Override public ProcessPriority read(ProcessIdentity process) {
+        return readWithNativeValue(process).priority();
+    }
+
+    @Override public ProcessPriorityReading readWithNativeValue(ProcessIdentity process) {
         HANDLE handle = verifiedOpen(process, QUERY_LIMITED_INFORMATION);
         try {
             int value = Kernel32.INSTANCE.GetPriorityClass(handle).intValue();
             if (value == 0) throw nativeFailure("GetPriorityClass");
-            return ProcessPriority.fromWindowsValue(value);
+            return new ProcessPriorityReading(ProcessPriority.fromWindowsValue(value), value);
         } finally { Kernel32.INSTANCE.CloseHandle(handle); }
     }
 
     @Override public void set(ProcessIdentity process, ProcessPriority priority) {
+        if (priority == ProcessPriority.HIGH || priority == ProcessPriority.REALTIME)
+            throw new IllegalArgumentException("Oxman nunca escribe HIGH ni REALTIME");
         HANDLE handle = verifiedOpen(process, QUERY_LIMITED_INFORMATION | SET_INFORMATION);
         try {
             if (!Kernel32.INSTANCE.SetPriorityClass(handle, new DWORD(priority.windowsValue())))

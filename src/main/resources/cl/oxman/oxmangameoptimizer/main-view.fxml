@@ -5,28 +5,29 @@
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.image.ImageView?>
-<?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Priority?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox xmlns="http://javafx.com/javafx"
+<ScrollPane xmlns="http://javafx.com/javafx"
       xmlns:fx="http://javafx.com/fxml"
       fx:controller="cl.oxman.oxmangameoptimizer.ui.MainController"
-      alignment="TOP_CENTER"
-      spacing="10">
+      fitToWidth="true" fitToHeight="true" hbarPolicy="NEVER" styleClass="main-scroll">
+  <content>
+  <VBox alignment="TOP_CENTER" spacing="7" maxWidth="Infinity" styleClass="oxman-content">
 
     <padding>
-        <Insets top="16" right="28" bottom="16" left="28"/>
+        <Insets top="12" right="18" bottom="12" left="18"/>
     </padding>
 
     <HBox alignment="CENTER" spacing="18" styleClass="brand-header">
-        <StackPane styleClass="logo-halo" maxWidth="116" maxHeight="116">
-            <ImageView fitWidth="102" fitHeight="102" preserveRatio="true" smooth="true">
+        <StackPane styleClass="logo-halo" maxWidth="92" maxHeight="92">
+            <ImageView fitWidth="80" fitHeight="80" preserveRatio="true" smooth="true">
                 <image>
                     <Image url="@company-logo-gold.png"/>
                 </image>
@@ -58,50 +59,68 @@
         </VBox>
     </HBox>
 
-    <GridPane hgap="12" vgap="4" styleClass="system-card" maxWidth="Infinity">
-        <Label text="DISCO" styleClass="section-small" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="system-card" maxWidth="Infinity">
+        <Label text="DISCO" styleClass="section-small"/>
         <Label fx:id="diskLabel" text="Detectando disco..." wrapText="true"
-               styleClass="hardware-info" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
-        <Label text="WINDOWS" styleClass="section-small" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+               maxWidth="Infinity" styleClass="hardware-info" HBox.hgrow="ALWAYS"/>
+        <Label text="WINDOWS" styleClass="section-small"/>
         <Label fx:id="osLabel" text="Detectando sistema..." wrapText="true"
-               styleClass="hardware-info" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
-    </GridPane>
+               maxWidth="Infinity" styleClass="hardware-info" HBox.hgrow="ALWAYS"/>
+        <Label fx:id="statusLabel" text="🟢 Sistema óptimo" styleClass="status"/>
+    </HBox>
 
-    <Label fx:id="statusLabel" text="🟢 Sistema óptimo" styleClass="status"/>
-
-    <VBox spacing="5" styleClass="system-card" maxWidth="Infinity">
+    <VBox spacing="7" styleClass="system-card performance-lab" maxWidth="Infinity">
         <HBox alignment="CENTER_LEFT" spacing="12">
             <Label text="PERFORMANCE LAB" styleClass="section"/>
-            <Label fx:id="performanceLabStateLabel" text="IDLE" styleClass="section-small"/>
+            <Label text="Estado:" styleClass="control-label"/>
+            <Label fx:id="performanceLabStateLabel" text="IDLE" styleClass="lab-state"/>
+            <Label fx:id="performanceLabResultLabel"
+                   text="Baseline de 10 segundos · 20 muestras · no estima FPS" wrapText="true" HBox.hgrow="ALWAYS"/>
+            <HBox HBox.hgrow="ALWAYS"/>
             <Button fx:id="measureButton" text="MEDIR SISTEMA" onAction="#measureSystemBaseline"/>
-            <ComboBox fx:id="benchmarkMode" prefWidth="185"/>
-            <ComboBox fx:id="benchmarkRuns" prefWidth="68"/>
-            <ComboBox fx:id="benchmarkDuration" prefWidth="78"/>
-            <Button fx:id="benchmarkButton" text="INICIAR TEST" onAction="#startBenchmark"/>
-            <Button fx:id="cancelBenchmarkButton" text="CANCELAR" disable="true" onAction="#cancelBenchmark"/>
         </HBox>
-        <Label fx:id="performanceLabResultLabel"
-               text="Baseline de 10 segundos · 20 muestras · no estima FPS" wrapText="true"/>
-        <Label fx:id="presentMonStatusLabel" text="PresentMon: comprobando..." styleClass="hardware-info"/>
+        <HBox alignment="BOTTOM_LEFT" spacing="12" maxWidth="Infinity">
+            <VBox spacing="3" HBox.hgrow="ALWAYS">
+                <Label text="Modo" styleClass="control-label"/>
+                <ComboBox fx:id="benchmarkMode" prefWidth="420" minWidth="280" maxWidth="Infinity"/>
+            </VBox>
+            <VBox spacing="3">
+                <Label text="Runs" styleClass="control-label"/>
+                <ComboBox fx:id="benchmarkRuns" prefWidth="90" minWidth="82"/>
+            </VBox>
+            <VBox spacing="3">
+                <Label text="Duración" styleClass="control-label"/>
+                <ComboBox fx:id="benchmarkDuration" prefWidth="110" minWidth="100"/>
+            </VBox>
+            <Button fx:id="benchmarkButton" text="INICIAR TEST" minWidth="150" onAction="#startBenchmark"/>
+            <Button fx:id="cancelBenchmarkButton" text="CANCELAR" minWidth="120" disable="true" onAction="#cancelBenchmark"/>
+        </HBox>
+        <HBox alignment="CENTER_LEFT" spacing="8" styleClass="diagnostic-box">
+            <Label text="DIAGNÓSTICO" styleClass="control-label"/>
+            <Label text="·" styleClass="diagnostic-separator"/>
+            <Label fx:id="presentMonStatusLabel" text="PresentMon: comprobando..." styleClass="hardware-info"/>
+        </HBox>
     </VBox>
 
     <HBox alignment="CENTER" spacing="10">
-        <ComboBox fx:id="gameSelector" prefWidth="250" promptText="Detectando juegos..."/>
-        <Button fx:id="boostButton" text="🚀 BOOST FPS" prefWidth="190" prefHeight="44"
+        <ComboBox fx:id="gameSelector" prefWidth="250" minWidth="210" promptText="Detectando juegos..." HBox.hgrow="ALWAYS"/>
+        <Button fx:id="boostButton" text="🚀 BOOST FPS" minWidth="150" prefWidth="190" prefHeight="44"
                 onAction="#boostFPS"/>
-        <Button fx:id="finishButton" text="FINALIZAR JUEGO" prefWidth="190" prefHeight="44"
+        <Button fx:id="finishButton" text="FINALIZAR JUEGO" minWidth="175" prefWidth="190" prefHeight="44"
                 disable="true" onAction="#finishGame"/>
     </HBox>
 
     <Label text="REGISTRO DE OPTIMIZACIÓN" styleClass="section"/>
 
     <TextArea fx:id="logArea"
-              prefWidth="620"
-              prefHeight="210"
-              minHeight="150"
+              maxWidth="Infinity"
+              prefHeight="280"
+              minHeight="240"
               editable="false"
               wrapText="true"
               styleClass="log-area"
               VBox.vgrow="ALWAYS"/>
 
-</VBox>
+  </VBox>
+  </content>
+</ScrollPane>
