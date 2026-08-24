@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -35,12 +36,20 @@ public final class OptimizationEngine {
     }
 
     public synchronized OptimizationReport apply(String gameName) {
+        return apply(gameName, actions.stream().map(OptimizationAction::id).collect(Collectors.toSet()));
+    }
+
+    public synchronized OptimizationReport apply(String gameName, Set<String> plannedActionIds) {
         current = SessionState.begin(gameName);
         if (!persist()) return new OptimizationReport(0, 0, 1, false);
         int applicable = 0;
         int applied = 0;
         int failed = 0;
         for (OptimizationAction action : actions) {
+            if (!plannedActionIds.contains(action.id())) {
+                log.accept("ℹ " + action.name() + ": no requiere cambios");
+                continue;
+            }
             if (action.safety() == OptimizationSafety.EXPERIMENTAL && !includeExperimental) {
                 log.accept("ℹ " + action.name() + ": experimental, no habilitada");
                 continue;

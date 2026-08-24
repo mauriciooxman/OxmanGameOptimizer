@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-set "OXMAN_JAR=%~dp0OxmanGameOptimizer-1.0.0.jar"
+set "OXMAN_JAR=%~dp0OxmanGameOptimizer-1.1.0.jar"
 set "OXMAN_LIBS=%~dp0standalone-libs"
 set "OXMAN_PRESENTMON=%~dp0tools\PresentMon.exe"
 
@@ -44,7 +44,7 @@ if errorlevel 1 (
 )
 
 if not exist "%OXMAN_JAR%" (
-    echo ERROR: No se encontro OxmanGameOptimizer-1.0.0.jar junto al launcher.
+    echo ERROR: No se encontro OxmanGameOptimizer-1.1.0.jar junto al launcher.
     goto :error
 )
 

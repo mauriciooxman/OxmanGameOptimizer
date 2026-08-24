@@ -7,6 +7,7 @@
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.ToggleButton?>
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.HBox?>
@@ -37,6 +38,8 @@
             <Label text="OXMAN IT" styleClass="title"/>
             <Label text="GAME OPTIMIZER" styleClass="title2"/>
             <Label text="Competitive Performance Dashboard" styleClass="subtitle"/>
+            <ToggleButton fx:id="advancedModeToggle" text="HERRAMIENTAS AVANZADAS"
+                          onAction="#toggleAdvancedMode" styleClass="advanced-toggle"/>
         </VBox>
     </HBox>
 
@@ -66,10 +69,12 @@
         <Label text="WINDOWS" styleClass="section-small"/>
         <Label fx:id="osLabel" text="Detectando sistema..." wrapText="true"
                maxWidth="Infinity" styleClass="hardware-info" HBox.hgrow="ALWAYS"/>
+        <Label text="ESTADO" styleClass="section-small"/>
         <Label fx:id="statusLabel" text="🟢 Sistema óptimo" styleClass="status"/>
     </HBox>
 
-    <VBox spacing="7" styleClass="system-card performance-lab" maxWidth="Infinity">
+    <VBox fx:id="performanceLabPanel" spacing="7" styleClass="system-card performance-lab"
+          maxWidth="Infinity" visible="false" managed="false">
         <HBox alignment="CENTER_LEFT" spacing="12">
             <Label text="PERFORMANCE LAB" styleClass="section"/>
             <Label text="Estado:" styleClass="control-label"/>
@@ -106,7 +111,7 @@
         <ComboBox fx:id="gameSelector" prefWidth="250" minWidth="210" promptText="Detectando juegos..." HBox.hgrow="ALWAYS"/>
         <Button fx:id="boostButton" text="🚀 BOOST FPS" minWidth="150" prefWidth="190" prefHeight="44"
                 onAction="#boostFPS"/>
-        <Button fx:id="finishButton" text="FINALIZAR JUEGO" minWidth="175" prefWidth="190" prefHeight="44"
+        <Button fx:id="finishButton" text="FINALIZAR Y RESTAURAR" minWidth="210" prefWidth="220" prefHeight="44"
                 disable="true" onAction="#finishGame"/>
     </HBox>
 

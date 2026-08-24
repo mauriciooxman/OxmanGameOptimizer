@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $productName = "Oxman Game Optimizer"
-$productVersion = "1.0.0"
+$productVersion = "1.1.0"
 $projectRoot = $PSScriptRoot
 $targetDir = Join-Path $projectRoot "target"
 $releaseRoot = Join-Path $targetDir "release"
@@ -46,6 +46,11 @@ if (-not (Test-Path -LiteralPath $mavenCommand -PathType Leaf)) {
 $previousJavaHome = $env:JAVA_HOME
 $previousHome = $env:HOME
 $previousMavenOpts = $env:MAVEN_OPTS
+$preservedReleaseRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("oxman-releases-{0}" -f [guid]::NewGuid())
+if (Test-Path -LiteralPath $releaseRoot -PathType Container) {
+    New-Item -ItemType Directory -Path $preservedReleaseRoot -Force | Out-Null
+    Copy-Item -LiteralPath $releaseRoot -Destination $preservedReleaseRoot -Recurse -Force
+}
 try {
     $env:JAVA_HOME = (Resolve-Path -LiteralPath $JdkHome).Path
     if ([string]::IsNullOrWhiteSpace($env:HOME)) { $env:HOME = $env:USERPROFILE }
@@ -59,6 +64,14 @@ finally {
     $env:JAVA_HOME = $previousJavaHome
     $env:HOME = $previousHome
     $env:MAVEN_OPTS = $previousMavenOpts
+}
+
+if (Test-Path -LiteralPath (Join-Path $preservedReleaseRoot "release") -PathType Container) {
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $preservedReleaseRoot "release") -Destination $targetDir -Recurse -Force
+}
+if (Test-Path -LiteralPath $preservedReleaseRoot) {
+    Remove-Item -LiteralPath $preservedReleaseRoot -Recurse -Force
 }
 
 New-Item -ItemType Directory -Path $packageInput -Force | Out-Null

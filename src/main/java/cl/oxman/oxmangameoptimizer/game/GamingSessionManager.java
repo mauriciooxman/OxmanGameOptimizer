@@ -51,10 +51,10 @@ public final class GamingSessionManager {
         statusCallback.accept("Aplicando perfil para " + profile);
         BoostOptimizer.applyBoost(profile.toString());
 
-        LogManager.addLog("🎮 Abriendo " + profile + "...");
+        LogManager.addClientLog("Abriendo " + profile + "...");
         boolean launched = profile.launch();
         if (!launched) {
-            LogManager.addLog("⚠ Abre el juego manualmente; lo detectaré durante 2 minutos.");
+            LogManager.addClientLog("Abre el juego manualmente; Oxman lo detectará automáticamente.");
         }
 
         statusCallback.accept("Esperando que inicie " + profile);
@@ -70,7 +70,7 @@ public final class GamingSessionManager {
             return;
         }
 
-        LogManager.addLog("✔ Juego detectado. El perfil seguirá activo hasta que cierres el juego.");
+        LogManager.addClientLog(profile + " detectado. El sistema está listo para jugar.");
         statusCallback.accept(profile + " en ejecución");
 
         while (SESSION_ACTIVE.get() && profile.isRunning()) {
@@ -81,7 +81,7 @@ public final class GamingSessionManager {
         }
 
         if (SESSION_ACTIVE.get()) {
-            LogManager.addLog("🎮 Juego cerrado; iniciando restauración automática.");
+            LogManager.addClientLog("Juego cerrado. Restaurando el sistema automáticamente.");
             restore(statusCallback);
         }
     }

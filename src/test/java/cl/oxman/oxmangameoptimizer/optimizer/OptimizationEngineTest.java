@@ -43,6 +43,29 @@ class OptimizationEngineTest {
         assertFalse(events.stream().anyMatch(value -> value.startsWith("restore:failed")));
     }
 
+    @Test void plannedApplyRunsOnlyActionsThatNeedChanges() {
+        List<String> events = new ArrayList<>();
+        FakeAction needed = new FakeAction("needed", events, true);
+        FakeAction optimized = new FakeAction("optimized", events, true);
+        OptimizationEngine engine = new OptimizationEngine(List.of(needed, optimized),
+                new SessionStateStore(temporary.resolve("planned.json")), ignored -> { });
+
+        var report = engine.apply("game", java.util.Set.of("needed"));
+        assertEquals(1, report.applicable());
+        assertEquals(1, report.applied());
+        assertEquals(List.of("apply:needed"), events);
+    }
+
+    @Test void emptyPlanRepresentsNoChangeWithoutApplyingAnything() {
+        List<String> events = new ArrayList<>();
+        OptimizationEngine engine = new OptimizationEngine(List.of(new FakeAction("safe", events, true)),
+                new SessionStateStore(temporary.resolve("no-change.json")), ignored -> { });
+        var report = engine.apply("game", java.util.Set.of());
+        assertEquals(0, report.applicable());
+        assertEquals(0, report.applied());
+        assertTrue(events.isEmpty());
+    }
+
     private static final class FakeAction implements OptimizationAction {
         private final String id;
         private final List<String> events;

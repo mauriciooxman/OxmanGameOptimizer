@@ -21,6 +21,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
 
 import java.util.concurrent.Executors;
@@ -102,10 +104,14 @@ public class MainController {
     @FXML private ComboBox<Integer> benchmarkRuns;
     @FXML private Button benchmarkButton;
     @FXML private Button cancelBenchmarkButton;
+    @FXML private ToggleButton advancedModeToggle;
+    @FXML private VBox performanceLabPanel;
 
     @FXML
     public void initialize() {
         LogManager.setLogArea(logArea);
+        applyViewState(ClientModeViewState.initial());
+        setPrimaryStatus(PrimaryStatus.READY, null);
         LogManager.addLog("Oxman elevated: " + (WindowsPrivileges.isElevated(new WindowsCommandRunner()) ? "YES" : "NO"));
         gameSelector.setCellFactory(listView -> createGameCell());
         gameSelector.setButtonCell(createGameCell());
@@ -147,12 +153,12 @@ public class MainController {
             gameSelector.getItems().setAll(detectedGames);
             if (detectedGames.isEmpty()) {
                 gameSelector.setPromptText("No se encontraron juegos");
-                statusLabel.setText("No se encontraron juegos instalados");
-                LogManager.addLog("ℹ No se encontraron instalaciones de juegos compatibles.");
+                setPrimaryStatus(PrimaryStatus.READY, "Selecciona un juego compatible");
+                LogManager.addClientLog("No se encontraron instalaciones de juegos compatibles.");
             } else {
                 gameSelector.setPromptText("Selecciona o abre un juego");
-                statusLabel.setText("Se detectaron " + detectedGames.size() + " juegos instalados");
-                LogManager.addLog("🎮 " + detectedGames.size() + " juegos instalados encontrados.");
+                setPrimaryStatus(PrimaryStatus.GAME_DETECTED, detectedGames.size() + " juegos disponibles");
+                LogManager.addClientLog(detectedGames.size() + " juegos instalados encontrados.");
             }
         });
     }
@@ -164,8 +170,8 @@ public class MainController {
             lastRunningGameId = profile.getId();
             Platform.runLater(() -> {
                 gameSelector.getSelectionModel().select(profile);
-                statusLabel.setText("🎮 Detectado: " + profile);
-                LogManager.addLog("✔ Juego abierto detectado automáticamente: " + profile);
+                setPrimaryStatus(PrimaryStatus.GAME_DETECTED, profile.toString());
+                LogManager.addClientLog(profile + " detectado");
             });
         }, () -> lastRunningGameId = null);
     }
@@ -223,15 +229,7 @@ public class MainController {
                 ram, usedRam, totalRam));
         ramBar.setProgress(ram / 100.0);
 
-        if (GamingSessionManager.isSessionActive()) return;
-
-        if (cpu < 40) {
-            statusLabel.setText("🟢 Sistema óptimo");
-        } else if (cpu < 75) {
-            statusLabel.setText("🟡 Carga moderada");
-        } else {
-            statusLabel.setText("🔴 Alta utilización");
-        }
+        // El estado principal representa el ciclo de optimización; las barras comunican la carga.
     }
 
     @FXML
@@ -242,7 +240,8 @@ public class MainController {
             return;
         }
 
-        logArea.clear();
+        LogManager.clear();
+        setPrimaryStatus(PrimaryStatus.OPTIMIZING, "Analizando y preparando el sistema");
         if (GamingSessionManager.start(profile, this::updateSessionStatus)) {
             boostButton.setDisable(true);
             finishButton.setDisable(false);
@@ -253,7 +252,27 @@ public class MainController {
     @FXML
     public void finishGame(ActionEvent event) {
         finishButton.setDisable(true);
+        setPrimaryStatus(PrimaryStatus.RESTORING, "Restaurando cambios reversibles");
         GamingSessionManager.finishManually(this::updateSessionStatus);
+    }
+
+    @FXML
+    public void toggleAdvancedMode(ActionEvent event) {
+        applyViewState(ClientModeViewState.forMode(
+                advancedModeToggle.isSelected() ? ApplicationMode.ADVANCED : ApplicationMode.CLIENT));
+    }
+
+    private void applyViewState(ClientModeViewState state) {
+        boolean advanced = state.performanceLabVisible();
+        performanceLabPanel.setVisible(advanced);
+        performanceLabPanel.setManaged(advanced);
+        advancedModeToggle.setSelected(state.mode() == ApplicationMode.ADVANCED);
+        advancedModeToggle.setText(advanced ? "OCULTAR HERRAMIENTAS AVANZADAS" : "HERRAMIENTAS AVANZADAS");
+        LogManager.setMode(state.mode());
+    }
+
+    private void setPrimaryStatus(PrimaryStatus status, String detail) {
+        statusLabel.setText(status.label() + (detail == null || detail.isBlank() ? "" : " · " + detail));
     }
 
     @FXML
@@ -385,7 +404,13 @@ public class MainController {
 
     private void updateSessionStatus(String status) {
         Platform.runLater(() -> {
-            statusLabel.setText(status);
+            if (status.startsWith("Aplicando")) setPrimaryStatus(PrimaryStatus.OPTIMIZING, "Aplicando optimizaciones seguras");
+            else if (status.startsWith("Esperando") || status.endsWith("en ejecución"))
+                setPrimaryStatus(PrimaryStatus.OPTIMIZED, status);
+            else if (status.startsWith("Restaurando")) setPrimaryStatus(PrimaryStatus.RESTORING, "Restaurando sistema");
+            else if ("Windows restaurado".equals(status)) setPrimaryStatus(PrimaryStatus.RESTORED, null);
+            else if ("Restauración pendiente".equals(status)) setPrimaryStatus(PrimaryStatus.ERROR, status);
+            else statusLabel.setText(status);
             if ("Windows restaurado".equals(status)) {
                 boostButton.setDisable(false);
                 finishButton.setDisable(true);

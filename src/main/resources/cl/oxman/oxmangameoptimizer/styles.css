@@ -283,6 +283,17 @@
     -fx-padding: 7 14;
 }
 
+.advanced-toggle {
+    -fx-font-size: 11px;
+    -fx-opacity: 0.78;
+    -fx-padding: 5 10;
+}
+
+.advanced-toggle:selected {
+    -fx-background-color: linear-gradient(to bottom, #8A6A00, #493800);
+    -fx-opacity: 1;
+}
+
 .combo-box .list-cell {
     -fx-text-fill: #F4F4F4;
     -fx-background-color: #171717;

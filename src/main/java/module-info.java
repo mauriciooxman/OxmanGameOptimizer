@@ -20,6 +20,7 @@ module cl.oxman.oxmangameoptimizer {
     exports cl.oxman.oxmangameoptimizer.optimizer;
     exports cl.oxman.oxmangameoptimizer.optimizer.action;
     exports cl.oxman.oxmangameoptimizer.optimizer.state;
+    exports cl.oxman.oxmangameoptimizer.optimizer.assessment;
     exports cl.oxman.oxmangameoptimizer.system;
     exports cl.oxman.oxmangameoptimizer.performance;
     exports cl.oxman.oxmangameoptimizer.performance.benchmark;
