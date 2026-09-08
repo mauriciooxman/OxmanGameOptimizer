@@ -190,7 +190,7 @@ public final class ExperimentalBenchmarkCoordinator implements AutoCloseable {
         return new BenchmarkRecord(benchmarkType,
                 game.toString(), value.run().safe().processName(), Instant.now(), duration,
                 value.run().safe(), value.run().aboveNormal(), value.safe().system(), value.priority().system(), value.priority().report(), active,
-                "1.0.0", System.getProperty("os.name") + " " + System.getProperty("os.version"),
+                "1.2.0", System.getProperty("os.name") + " " + System.getProperty("os.version"),
                 ExperimentConfiguration.SAFE.name(), experimentalConfiguration.name(), experimentType(),
                 value.run().runNumber(), value.run().order().toString(), List.of(actionId()),
                 value.run().validity());

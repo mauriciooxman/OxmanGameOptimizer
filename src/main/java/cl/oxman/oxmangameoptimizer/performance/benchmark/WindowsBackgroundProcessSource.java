@@ -13,12 +13,14 @@ public final class WindowsBackgroundProcessSource implements BackgroundProcessSo
     @Override public List<BackgroundProcessObservation> observe(Duration duration) {
         long foregroundBefore = foregroundPid();
         String currentUser = normalizeUser(System.getProperty("user.name", ""));
+        if (foregroundBefore <= 0 || currentUser.isBlank()) throw new IllegalStateException("Unknown foreground/user context");
         Map<Long, Sample> before = samples();
         long observationStarted = System.nanoTime();
         try { Thread.sleep(Math.max(1, duration.toMillis())); }
         catch (InterruptedException exception) { Thread.currentThread().interrupt(); return List.of(); }
         long elapsedNanos = Math.max(1, System.nanoTime() - observationStarted);
         long foregroundAfter = foregroundPid();
+        if (foregroundAfter <= 0) throw new IllegalStateException("Unknown foreground context");
         int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
         List<BackgroundProcessObservation> result = new ArrayList<>();
         for (Sample after : samples().values()) {

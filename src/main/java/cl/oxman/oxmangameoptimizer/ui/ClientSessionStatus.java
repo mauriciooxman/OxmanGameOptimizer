@@ -6,6 +6,7 @@ public final class ClientSessionStatus {
     private ClientSessionStatus() { }
 
     public static String afterOptimization(OptimizationReport report) {
+        if (report.failed() > 0) return "ATENCIÓN REQUERIDA";
         return report.applied() > 0 ? "OPTIMIZACIÓN ACTIVA" : "SISTEMA LISTO";
     }
 

@@ -14,6 +14,7 @@ public final class BackgroundEcoQosAction implements OptimizationAction {
     private final Consumer<String> log;
     private String originalState;
     private ProcessPowerThrottlingState appliedState;
+    private ProcessPowerThrottlingState preparedState;
 
     public BackgroundEcoQosAction(ProcessIdentity identity, ProcessPowerThrottlingService service, Consumer<String> log) {
         this.identity = identity; this.service = service; this.log = log;
@@ -26,10 +27,17 @@ public final class BackgroundEcoQosAction implements OptimizationAction {
     public boolean isReversible() { return true; }
     public OptimizationSafety safety() { return OptimizationSafety.EXPERIMENTAL; }
     public String originalState() { return originalState; }
+    public String prepareOriginalState() {
+        preparedState = service.read(identity);
+        originalState = encode(identity, preparedState);
+        return originalState;
+    }
 
     public OptimizationResult apply() {
         try {
             ProcessPowerThrottlingState before = service.read(identity);
+            if (preparedState != null && !preparedState.equals(before))
+                return OptimizationResult.unchanged("CONFIGURATION_DRIFT: estado externo preservado");
             originalState = encode(identity, before);
             if (before.isExecutionSpeedEnabled()) return OptimizationResult.unchanged("ya estaba en EcoQoS");
             appliedState = before.withExecutionSpeedEnabled();

@@ -17,9 +17,10 @@ class LogManagerTest {
         assertTrue(LogManager.entriesFor(ApplicationMode.CLIENT).getFirst().contains("Sistema preparado para jugar"));
     }
 
-    @Test void technicalErrorsRemainVisibleToClients() {
+    @Test void technicalErrorsProducePlainClientAlertWithoutNativeDetails() {
         LogManager.resetForTests();
         LogManager.addLog("❌ Error al restaurar");
-        assertTrue(LogManager.entriesFor(ApplicationMode.CLIENT).getFirst().contains("Error al restaurar"));
+        assertTrue(LogManager.entriesFor(ApplicationMode.CLIENT).getFirst().contains("Revisa el diagnóstico avanzado"));
+        assertTrue(LogManager.entriesFor(ApplicationMode.ADVANCED).getFirst().contains("Error al restaurar"));
     }
 }

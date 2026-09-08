@@ -27,7 +27,14 @@ public final class GamingSessionManager {
             return false;
         }
 
-        Thread sessionThread = new Thread(() -> runSession(profile, statusCallback), "game-session");
+        Thread sessionThread = new Thread(() -> {
+            try { runSession(profile, statusCallback); }
+            catch (RuntimeException exception) {
+                LogManager.addClientLog("No se pudo completar la preparación. Restaurando cambios pendientes.");
+                LogManager.addLog("Session failure: " + exception.getMessage());
+                restore(statusCallback);
+            }
+        }, "game-session");
         sessionThread.setDaemon(true);
         sessionThread.start();
         return true;
@@ -51,8 +58,10 @@ public final class GamingSessionManager {
 
     private static void runSession(GameProfile profile, Consumer<String> statusCallback) {
         statusCallback.accept("Aplicando perfil para " + profile);
-        OptimizationReport report = BoostOptimizer.applyBoost(profile.toString());
+        OptimizationReport report = BoostOptimizer.applyBoost(profile);
+        if (!SESSION_ACTIVE.get() || RESTORING.get()) return;
         statusCallback.accept(ClientSessionStatus.afterOptimization(report));
+        if (report.failed() > 0) { restore(statusCallback); return; }
 
         statusCallback.accept(ClientSessionStatus.starting(profile.toString()));
         LogManager.addClientLog("Abriendo " + profile + "...");

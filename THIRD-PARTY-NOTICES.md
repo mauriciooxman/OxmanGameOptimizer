@@ -1,6 +1,6 @@
 # Third-party notices
 
-Oxman Game Optimizer 1.0.0 distribuye o utiliza los siguientes componentes de terceros. Las licencias incluidas dentro de cada JAR siguen siendo aplicables.
+Oxman Game Optimizer 1.2.0 distribuye o utiliza los siguientes componentes de terceros. Las licencias incluidas dentro de cada JAR siguen siendo aplicables.
 
 ## PresentMon
 

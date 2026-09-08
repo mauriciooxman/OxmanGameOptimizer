@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ClientSessionStatusTest {
+    @Test void failureDoesNotReportReady() {
+        assertEquals("ATENCIÓN REQUERIDA", ClientSessionStatus.afterOptimization(new OptimizationReport(1,0,1,false)));
+    }
     @Test void appliedChangesProduceActiveOptimizationStatus() {
         assertEquals("OPTIMIZACIÓN ACTIVA",
                 ClientSessionStatus.afterOptimization(new OptimizationReport(2, 1, 0, false)));

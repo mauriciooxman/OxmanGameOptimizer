@@ -14,6 +14,7 @@ public final class PowerPlanAction implements OptimizationAction {
     private static final String HIGH_PERFORMANCE = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
     private final SystemCommandRunner commands;
     private String original;
+    private boolean prepared;
 
     public PowerPlanAction(SystemCommandRunner commands) { this.commands = commands; }
     @Override public String id() { return ID; }
@@ -23,12 +24,23 @@ public final class PowerPlanAction implements OptimizationAction {
     @Override public boolean requiresAdministrator() { return false; }
     @Override public boolean isReversible() { return true; }
     @Override public String originalState() { return original; }
+    @Override public String prepareOriginalState() {
+        original = activeGuid();
+        if (original == null) throw new IllegalStateException("No se pudo leer el plan activo");
+        prepared = true;
+        return original;
+    }
 
     @Override
     public OptimizationResult apply() {
-        original = activeGuid();
+        String current = activeGuid();
+        if (prepared && (current == null || !current.equalsIgnoreCase(original)))
+            return OptimizationResult.unchanged("CONFIGURATION_DRIFT: plan cambiado durante el diagnóstico");
+        original = current;
         if (original == null) return OptimizationResult.failure("no se pudo leer el plan activo");
-        if (HIGH_PERFORMANCE.equalsIgnoreCase(original)) return OptimizationResult.unchanged("High Performance ya estaba activo");
+        if (cl.oxman.oxmangameoptimizer.optimizer.assessment.PowerPlanPolicy.optimized(original)) return OptimizationResult.unchanged("High Performance o equivalente ya estaba activo");
+        if (!cl.oxman.oxmangameoptimizer.optimizer.assessment.PowerPlanPolicy.changeable(original))
+            return OptimizationResult.unchanged("CONFIGURATION_DRIFT: plan personalizado preservado");
         if (!setActive(HIGH_PERFORMANCE) || !HIGH_PERFORMANCE.equalsIgnoreCase(activeGuid())) {
             setActive(original);
             return OptimizationResult.failure("Windows no confirmó el cambio de plan");
@@ -40,7 +52,10 @@ public final class PowerPlanAction implements OptimizationAction {
     public OptimizationResult restore(String originalState) {
         if (originalState == null || !GUID.matcher(originalState).matches())
             return OptimizationResult.failure("GUID original inválido");
-        if (originalState.equalsIgnoreCase(activeGuid())) return OptimizationResult.unchanged("plan original ya activo");
+        String active = activeGuid();
+        if (active == null) return OptimizationResult.failure("No se pudo consultar el plan durante restore");
+        if (originalState.equalsIgnoreCase(active)) return OptimizationResult.unchanged("plan original ya activo");
+        if (!HIGH_PERFORMANCE.equalsIgnoreCase(active)) return OptimizationResult.unchanged("CONFIGURATION_DRIFT: plan externo preservado");
         return setActive(originalState) && originalState.equalsIgnoreCase(activeGuid())
                 ? OptimizationResult.changed("plan original restaurado: " + originalState)
                 : OptimizationResult.failure("no se pudo confirmar el plan original");

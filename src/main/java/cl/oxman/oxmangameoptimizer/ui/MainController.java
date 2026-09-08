@@ -106,10 +106,18 @@ public class MainController {
     @FXML private Button cancelBenchmarkButton;
     @FXML private ToggleButton advancedModeToggle;
     @FXML private VBox performanceLabPanel;
+    @FXML private VBox detailedDiagnosisPanel;
+    @FXML private Label diagnosisSummaryLabel;
+    @FXML private TextArea detailedDiagnosisLabel;
 
     @FXML
     public void initialize() {
         LogManager.setLogArea(logArea);
+        cl.oxman.oxmangameoptimizer.optimizer.BoostOptimizer.setDiagnosisListener((assessment, report) -> Platform.runLater(() -> {
+            diagnosisSummaryLabel.setText(report == null ? DiagnosisPresentation.client(assessment) : DiagnosisPresentation.summary(report, assessment));
+            detailedDiagnosisLabel.setText(DiagnosisPresentation.advanced(assessment)
+                    + (report == null ? "" : "\nResultados:\n" + DiagnosisPresentation.outcomes(report)));
+        }));
         applyViewState(ClientModeViewState.initial());
         setPrimaryStatus(PrimaryStatus.READY, null);
         LogManager.addLog("Oxman elevated: " + (WindowsPrivileges.isElevated(new WindowsCommandRunner()) ? "YES" : "NO"));
@@ -264,6 +272,8 @@ public class MainController {
 
     private void applyViewState(ClientModeViewState state) {
         boolean advanced = state.performanceLabVisible();
+        detailedDiagnosisPanel.setVisible(advanced);
+        detailedDiagnosisPanel.setManaged(advanced);
         performanceLabPanel.setVisible(advanced);
         performanceLabPanel.setManaged(advanced);
         advancedModeToggle.setSelected(state.mode() == ApplicationMode.ADVANCED);
@@ -289,7 +299,7 @@ public class MainController {
             } else {
                 performanceLabStateLabel.setText("COMPLETED");
                 performanceLabResultLabel.setText(formatSnapshot(snapshot));
-                LogManager.addLog("Baseline completado con " + snapshot.sampleCount() + " muestras");
+                LogManager.addLog("Baseline completado con " + CountText.format(snapshot.sampleCount(), "muestra", "muestras"));
             }
         }));
     }

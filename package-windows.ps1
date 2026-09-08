@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $productName = "Oxman Game Optimizer"
-$productVersion = "1.1.0"
+$productVersion = "1.2.0"
 $projectRoot = $PSScriptRoot
 $targetDir = Join-Path $projectRoot "target"
 $releaseRoot = Join-Path $targetDir "release"

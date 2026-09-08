@@ -1,4 +1,4 @@
-# Oxman Game Optimizer
+# Oxman Game Optimizer v1.2.0
 
 Oxman Game Optimizer es una aplicación para Windows que aplica ajustes reversibles, mide su efecto y conserva únicamente los resultados útiles para cada equipo.
 
@@ -19,7 +19,7 @@ La filosofía del proyecto es:
 
 Oxman no garantiza aumentos de FPS. El beneficio depende del hardware, la configuración, el juego y la carga del sistema.
 
-## Experimentos de v1.0
+## Experimentos
 
 - **Process Priority:** experimental; puede presentar `CONFIGURATION_DRIFT` y no forma parte del BOOST normal.
 - **HighQoS:** experimental; puede resultar `NO_CHANGE` si Windows o el juego ya lo utiliza.
@@ -31,7 +31,7 @@ Los experimentos se ejecutan solo cuando el usuario los inicia; Oxman no los pro
 
 Benchmarks, snapshots experimentales y estado de recuperación se almacenan en `%LOCALAPPDATA%\OxmanGameOptimizer`. Los benchmarks guardan métricas agregadas y no almacenan credenciales, nombres de usuario, líneas de comando ni rutas de instalación.
 
-Oxman v1.0 no desactiva Microsoft Defender ni Windows Update; no modifica HPET, pagefile o afinidad; no ejecuta ajustes con `bcdedit`; no aplica prioridades HIGH o REALTIME; no realiza ajustes agresivos del registro ni mata aplicaciones del usuario.
+Oxman v1.2.0 no desactiva Microsoft Defender ni Windows Update; no modifica HPET, pagefile o afinidad; no ejecuta ajustes con `bcdedit`; no aplica prioridades HIGH o REALTIME; no realiza ajustes agresivos del registro ni mata aplicaciones del usuario.
 
 ## Ejecución (distribución portable para clientes)
 

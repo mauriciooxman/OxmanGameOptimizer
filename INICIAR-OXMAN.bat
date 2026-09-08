@@ -2,8 +2,8 @@
 setlocal
 cd /d "%~dp0"
 
-set "OXMAN_JAR=%~dp0OxmanGameOptimizer-1.1.0.jar"
-set "OXMAN_LIBS=%~dp0standalone-libs"
+set "OXMAN_JAR=%~dp0target\OxmanGameOptimizer-1.2.0.jar"
+set "OXMAN_LIBS=%~dp0target\standalone-libs"
 set "OXMAN_PRESENTMON=%~dp0tools\PresentMon.exe"
 
 rem PresentMon requires an elevated process to start its ETW trace session.
@@ -37,27 +37,27 @@ if not defined JAVA_EXE (
 )
 
 set "OXMAN_JAVA=%JAVA_EXE%"
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$line = ^& $env:OXMAN_JAVA -version 2^>^&1 ^| Select-Object -First 1; if ($line -notmatch 'version \"?([0-9]+)') { exit 1 }; if ([int]$Matches[1] -lt 22) { exit 1 }"
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$output = & $env:OXMAN_JAVA -version 2>&1; $line = $output | Select-Object -First 1; if ($LASTEXITCODE -ne 0 -or $line -notmatch 'version\D*([0-9]+)') { exit 1 }; if ([int]$Matches[1] -lt 22) { exit 1 }; exit 0"
 if errorlevel 1 (
     echo ERROR: Oxman requiere Java 22 o superior.
     goto :error
 )
 
 if not exist "%OXMAN_JAR%" (
-    echo ERROR: No se encontro OxmanGameOptimizer-1.1.0.jar junto al launcher.
+    echo ERROR: No se encontro el JAR esperado: "%OXMAN_JAR%"
     goto :error
 )
 
 if not exist "%OXMAN_LIBS%\jna-5.15.0.jar" (
-    echo ERROR: Falta standalone-libs\jna-5.15.0.jar.
+    echo ERROR: Falta target\standalone-libs\jna-5.15.0.jar.
     goto :error
 )
 if not exist "%OXMAN_LIBS%\jna-platform-5.15.0.jar" (
-    echo ERROR: Falta standalone-libs\jna-platform-5.15.0.jar.
+    echo ERROR: Falta target\standalone-libs\jna-platform-5.15.0.jar.
     goto :error
 )
 if not exist "%OXMAN_LIBS%\oshi-core-6.6.5.jar" (
-    echo ERROR: Falta standalone-libs\oshi-core-6.6.5.jar.
+    echo ERROR: Falta target\standalone-libs\oshi-core-6.6.5.jar.
     goto :error
 )
 if not exist "%OXMAN_PRESENTMON%" (
@@ -65,7 +65,7 @@ if not exist "%OXMAN_PRESENTMON%" (
     goto :error
 )
 
-"%JAVA_EXE%" --module-path "%OXMAN_JAR%;%OXMAN_LIBS%" --module cl.oxman.oxmangameoptimizer/cl.oxman.oxmangameoptimizer.ApplicationLauncher
+"%JAVA_EXE%" -cp "%OXMAN_JAR%;%OXMAN_LIBS%\*" cl.oxman.oxmangameoptimizer.ApplicationLauncher
 if errorlevel 1 goto :error
 
 exit /b 0

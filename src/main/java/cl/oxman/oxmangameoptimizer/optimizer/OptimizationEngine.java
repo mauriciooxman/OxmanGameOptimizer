@@ -1,6 +1,8 @@
 package cl.oxman.oxmangameoptimizer.optimizer;
 
 import cl.oxman.oxmangameoptimizer.optimizer.action.OptimizationAction;
+import cl.oxman.oxmangameoptimizer.optimizer.action.ActionOutcome;
+import static cl.oxman.oxmangameoptimizer.optimizer.action.ActionOutcome.Status.*;
 import cl.oxman.oxmangameoptimizer.optimizer.action.OptimizationResult;
 import cl.oxman.oxmangameoptimizer.optimizer.action.OptimizationSafety;
 import cl.oxman.oxmangameoptimizer.optimizer.state.AppliedChange;
@@ -40,47 +42,67 @@ public final class OptimizationEngine {
     }
 
     public synchronized OptimizationReport apply(String gameName, Set<String> plannedActionIds) {
+        if (hasIncompleteSession()) return new OptimizationReport(0, 0, 1, false,
+                List.of(new ActionOutcome("session", FAILED, "Restauración pendiente; snapshot conservado")));
+        if (plannedActionIds.isEmpty()) return new OptimizationReport(0, 0, 0, true);
         current = SessionState.begin(gameName);
         if (!persist()) return new OptimizationReport(0, 0, 1, false);
-        int applicable = 0;
-        int applied = 0;
-        int failed = 0;
+        int applicable = 0, applied = 0, failed = 0;
+        List<ActionOutcome> outcomes = new ArrayList<>();
         for (OptimizationAction action : actions) {
-            if (!plannedActionIds.contains(action.id())) {
-                log.accept("ℹ " + action.name() + ": no requiere cambios");
+            if (!plannedActionIds.contains(action.id())) continue;
+            if (!action.isReversible() || (action.safety() == OptimizationSafety.EXPERIMENTAL && !includeExperimental)) {
+                outcomes.add(new ActionOutcome(action.id(), SKIPPED, "Acción no permitida"));
                 continue;
             }
-            if (action.safety() == OptimizationSafety.EXPERIMENTAL && !includeExperimental) {
-                log.accept("ℹ " + action.name() + ": experimental, no habilitada");
-                continue;
-            }
-            if (!action.isSupported()) {
-                log.accept("ℹ " + action.name() + ": no disponible");
-                continue;
-            }
-            applicable++;
-            OptimizationResult result;
-            try { result = action.apply(); }
-            catch (RuntimeException exception) { result = OptimizationResult.failure(exception.getMessage()); }
-            if (!result.success()) {
-                failed++;
-                log.accept("⚠ " + action.name() + ": " + result.error()
-                        + (action.requiresAdministrator() ? " (requiere administrador)" : ""));
-                continue;
-            }
-            if (result.changed()) {
-                current.add(new AppliedChange(action.id(), action.originalState()));
-                if (!persist()) {
-                    failed++;
-                    action.restore(action.originalState());
-                    log.accept("⚠ " + action.name() + ": cambio revertido porque no se pudo guardar el snapshot");
+            boolean journaled = false;
+            try {
+                if (!action.isSupported()) {
+                    outcomes.add(new ActionOutcome(action.id(), NOT_APPLICABLE, "No disponible"));
                     continue;
                 }
-                applied++;
+                applicable++;
+                String prepared = action.prepareOriginalState();
+                if (prepared != null) {
+                    current.add(new AppliedChange(action.id(), prepared));
+                    if (!persist()) {
+                        outcomes.add(new ActionOutcome(action.id(), FAILED, "Snapshot no disponible; acción no ejecutada"));
+                        failed++;
+                        break;
+                    }
+                    journaled = true;
+                }
+                OptimizationResult result = action.apply();
+                if (!result.success()) {
+                    failed++;
+                    outcomes.add(new ActionOutcome(action.id(), FAILED, result.error()));
+                    // Keep a prepared snapshot: even partial native failure must remain recoverable.
+                } else if (result.changed()) {
+                    if (!journaled) {
+                        current.add(new AppliedChange(action.id(), action.originalState()));
+                        if (!persist()) {
+                            failed++;
+                            action.restore(action.originalState());
+                            outcomes.add(new ActionOutcome(action.id(), FAILED, "No se pudo guardar recuperación"));
+                            break;
+                        }
+                    }
+                    applied++;
+                    outcomes.add(new ActionOutcome(action.id(), APPLIED, result.detail()));
+                } else {
+                    outcomes.add(new ActionOutcome(action.id(), result.detail().contains("CONFIGURATION_DRIFT")
+                            ? SKIPPED : ALREADY_OPTIMIZED, result.detail()));
+                }
+            } catch (RuntimeException exception) {
+                failed++;
+                outcomes.add(new ActionOutcome(action.id(), FAILED, String.valueOf(exception.getMessage())));
             }
-            log.accept("✔ " + action.name() + ": " + result.detail());
         }
-        return new OptimizationReport(applicable, applied, failed, false);
+        Set<String> reported = outcomes.stream().map(ActionOutcome::actionId).collect(Collectors.toSet());
+        plannedActionIds.stream().filter(id -> !reported.contains(id)).forEach(id ->
+                outcomes.add(new ActionOutcome(id, SKIPPED, "Acción no ejecutada; condiciones o recuperación no disponibles")));
+        outcomes.forEach(o -> log.accept(o.actionId() + " · " + o.status() + " · " + o.detail()));
+        return new OptimizationReport(applicable, applied, failed, false, outcomes);
     }
 
     public synchronized OptimizationReport restore() {
@@ -112,7 +134,7 @@ public final class OptimizationEngine {
     }
 
     public synchronized boolean hasIncompleteSession() {
-        try { return store.load().isPresent(); } catch (IOException exception) { return true; }
+        try { return store.load().isPresent(); } catch (IOException | RuntimeException exception) { return true; }
     }
 
     private boolean persist() {

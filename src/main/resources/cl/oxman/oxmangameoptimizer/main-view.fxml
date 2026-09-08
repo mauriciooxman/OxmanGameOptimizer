@@ -73,6 +73,15 @@
         <Label fx:id="statusLabel" text="🟢 Sistema óptimo" styleClass="status"/>
     </HBox>
 
+    <Label fx:id="diagnosisSummaryLabel" text="El BOOST analiza el sistema antes de aplicar ajustes seguros."
+           wrapText="true" minHeight="-Infinity" maxWidth="Infinity" styleClass="hardware-info"/>
+    <VBox fx:id="detailedDiagnosisPanel" spacing="5" styleClass="system-card" maxWidth="Infinity" visible="false" managed="false">
+        <Label text="DIAGNÓSTICO DETALLADO" styleClass="section"/>
+        <TextArea fx:id="detailedDiagnosisLabel" text="Sin análisis pre-game todavía. Independiente de Performance Lab."
+                  editable="false" wrapText="true" minHeight="160" prefHeight="180" maxHeight="180"
+                  maxWidth="Infinity" styleClass="log-area"/>
+    </VBox>
+
     <VBox fx:id="performanceLabPanel" spacing="7" styleClass="system-card performance-lab"
           maxWidth="Infinity" visible="false" managed="false">
         <HBox alignment="CENTER_LEFT" spacing="12">

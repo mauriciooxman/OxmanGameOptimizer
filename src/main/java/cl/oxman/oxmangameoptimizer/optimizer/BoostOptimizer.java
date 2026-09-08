@@ -1,95 +1,100 @@
 package cl.oxman.oxmangameoptimizer.optimizer;
 
-import cl.oxman.oxmangameoptimizer.ui.LogManager;
-import cl.oxman.oxmangameoptimizer.optimizer.action.PowerPlanAction;
-import cl.oxman.oxmangameoptimizer.optimizer.action.ServiceStopAction;
+import cl.oxman.oxmangameoptimizer.ui.*;
+import cl.oxman.oxmangameoptimizer.game.GameProfile;
+import cl.oxman.oxmangameoptimizer.optimizer.action.*;
 import cl.oxman.oxmangameoptimizer.optimizer.state.SessionStateStore;
-import cl.oxman.oxmangameoptimizer.system.WindowsCommandRunner;
+import cl.oxman.oxmangameoptimizer.system.*;
 import cl.oxman.oxmangameoptimizer.optimizer.assessment.*;
-
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import cl.oxman.oxmangameoptimizer.performance.benchmark.WindowsBackgroundProcessSource;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.function.BiConsumer;
 
 public final class BoostOptimizer {
-
     private static final WindowsCommandRunner COMMANDS = new WindowsCommandRunner();
-    private static final OptimizationEngine ENGINE = new OptimizationEngine(List.of(
-            new PowerPlanAction(COMMANDS),
-            // DiagTrack is optional and reversible. WSearch is intentionally preserved: its
-            // gaming benefit is marginal and stopping it degrades Windows search/indexing.
-            new ServiceStopAction("DiagTrack", "Telemetría de diagnóstico durante la sesión", COMMANDS)
-    ), SessionStateStore.localAppData(), LogManager::addLog);
-    private static final SystemOptimizationAssessmentService ASSESSMENT =
-            new SystemOptimizationAssessmentService(COMMANDS, BoostOptimizer::backgroundCandidateCount);
+    private static final ProcessPowerThrottlingService QOS = new WindowsProcessPowerThrottlingService();
+    private static final DiagnosisThresholds THRESHOLDS = DiagnosisThresholds.DEFAULT;
+    private static final SessionStateStore STORE = SessionStateStore.localAppData();
+    private static OptimizationEngine engine;
+    private static volatile BiConsumer<SystemOptimizationAssessment, OptimizationReport> diagnosisListener = (a, r) -> { };
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "optimization-engine");
-        thread.setDaemon(true);
-        return thread;
+        Thread thread = new Thread(runnable, "optimization-engine"); thread.setDaemon(true); return thread;
     });
-
-    private BoostOptimizer() {
+    private BoostOptimizer() { }
+    public static void setDiagnosisListener(BiConsumer<SystemOptimizationAssessment, OptimizationReport> listener) {
+        diagnosisListener = Objects.requireNonNull(listener);
     }
-
-    public static OptimizationReport applyBoost(String gameName) {
-        LogManager.addClientLog("Preparando " + gameName + "...");
-        LogManager.addClientLog("Analizando configuración del sistema...");
-        SystemOptimizationAssessment assessment = ASSESSMENT.assess();
-        OptimizationPlan plan = OptimizationPlan.from(assessment);
-        assessment.items().forEach(item -> LogManager.addLog("Assessment · " + item.label() + " → "
-                + item.status() + " · " + item.detail()));
-        assessment.items().stream().filter(item -> item.actionId().equals("background-load"))
-                .filter(item -> item.status() == AssessmentStatus.ACTION_AVAILABLE)
-                .findFirst().ifPresent(item -> LogManager.addClientLog(
-                        "Carga de fondo optimizable detectada. Disponible en herramientas avanzadas."));
-        LogManager.addClientLog("Aplicando optimizaciones seguras...");
-        OptimizationReport report = ENGINE.apply(gameName, plan.actionIds());
-        LogManager.addLog("Optimizaciones: " + report.applied() + "/" + report.applicable() + " aplicadas");
-        if (report.failed() > 0) {
-            LogManager.addClientLog("No se pudo completar la optimización. Revisa el diagnóstico avanzado.");
-        } else if (report.applied() == 0) {
-            LogManager.addClientLog("Sistema ya optimizado. No fue necesario realizar cambios.");
-        } else {
-            LogManager.addClientLog(report.applied() + (report.applied() == 1
-                    ? " optimización segura aplicada." : " optimizaciones seguras aplicadas."));
-        }
-        LogManager.addClientLog("Sistema preparado para jugar. Todos los cambios son reversibles.");
+    public static synchronized OptimizationReport applyBoost(String gameName) { return applyBoost(gameName, null); }
+    public static synchronized OptimizationReport applyBoost(GameProfile game) {
+        return applyBoost(game.toString(), game.findRunningProcessIdentity().orElse(null));
+    }
+    private static OptimizationReport applyBoost(String gameName, ProcessIdentity game) {
+        if (!recoverIncompleteSession()) return new OptimizationReport(0, 0, 1, false);
+        LogManager.addClientLog("Analizando sistema... (aproximadamente 4 segundos)");
+        PreGameBaseline baseline;
+        try { baseline = PreGameBaselineService.windows(THRESHOLDS).collect(); }
+        catch (RuntimeException | LinkageError exception) { baseline = PreGameBaseline.unavailable(); }
+        var assessment = new SystemOptimizationAssessmentService(COMMANDS, THRESHOLDS).assess(baseline, game, QOS);
+        var plan = AdaptiveOptimizationPlan.from(assessment);
+        LogManager.addClientLog(DiagnosisPresentation.client(assessment));
+        LogManager.addLog(DiagnosisPresentation.advanced(assessment));
+        diagnosisListener.accept(assessment, null);
+        List<OptimizationAction> actions = new ArrayList<>();
+        actions.add(new PowerPlanAction(COMMANDS));
+        actions.addAll(AdaptiveBackgroundAction.create(assessment, plan, THRESHOLDS, QOS,
+                new WindowsBackgroundProcessSource(), game == null ? -1 : game.pid(), LogManager::addLog));
+        engine = new OptimizationEngine(actions, STORE, LogManager::addLog);
+        if (!plan.actionIds().isEmpty()) LogManager.addClientLog("Aplicando ajustes seguros y verificando sus estados...");
+        OptimizationReport executed = engine.apply(gameName, plan.actionIds());
+        List<ActionOutcome> outcomes = new ArrayList<>(executed.outcomes());
+        assessment.items().stream().filter(i -> !plan.actionIds().contains(i.actionId())).forEach(i -> outcomes.add(new ActionOutcome(
+                i.actionId(), switch (i.status()) {
+                    case OPTIMIZED -> ActionOutcome.Status.ALREADY_OPTIMIZED;
+                    case NOT_APPLICABLE, UNSUPPORTED -> ActionOutcome.Status.NOT_APPLICABLE;
+                    case ACTION_AVAILABLE -> ActionOutcome.Status.SKIPPED;
+                }, i.detail())));
+        var report = new OptimizationReport(executed.applicable(), executed.applied(), executed.failed(), executed.fullyRestored(), outcomes);
+        LogManager.addClientLog(DiagnosisPresentation.summary(report, assessment));
+        diagnosisListener.accept(assessment, report);
         return report;
     }
-
     public static CompletableFuture<OptimizationReport> applyBoostAsync(String gameName) {
         return CompletableFuture.supplyAsync(() -> applyBoost(gameName), EXECUTOR);
     }
-
-    public static boolean restoreDefaults() {
-        LogManager.addLog("Restaurando Windows");
-        OptimizationReport report = ENGINE.restore();
-        if (report.fullyRestored()) LogManager.addLog("Sistema restaurado correctamente");
-        else LogManager.addLog("⚠ Restauración incompleta; se conservará el snapshot para reintentar");
-        return report.fullyRestored();
-    }
-
-    public static CompletableFuture<OptimizationReport> restoreAsync() {
-        return CompletableFuture.supplyAsync(() -> {
-            LogManager.addLog("Restaurando Windows");
-            OptimizationReport report = ENGINE.restore();
-            if (report.fullyRestored()) LogManager.addLog("Sistema restaurado correctamente");
-            else LogManager.addLog("⚠ Restauración incompleta; se conservará el snapshot para reintentar");
+    public static synchronized boolean restoreDefaults() { return restoreReport().fullyRestored(); }
+    private static synchronized OptimizationReport restoreReport() {
+        try {
+            if (engine == null) engine = recoveryEngine();
+            var report = engine.restore();
+            if (report.fullyRestored()) { engine = null; LogManager.addLog("Sistema restaurado correctamente"); }
+            else LogManager.addLog("Restauración pendiente; snapshot conservado para reintentar");
             return report;
-        }, EXECUTOR);
+        } catch (Exception exception) {
+            LogManager.addLog("No se pudo leer la recuperación: " + exception.getMessage());
+            return new OptimizationReport(0, 0, 1, false);
+        }
     }
-
-    public static boolean recoverIncompleteSession() {
-        if (!ENGINE.hasIncompleteSession()) return true;
-        LogManager.addLog("Se detectó una sesión incompleta; restaurando cambios pendientes");
+    public static CompletableFuture<OptimizationReport> restoreAsync() {
+        return CompletableFuture.supplyAsync(BoostOptimizer::restoreReport, EXECUTOR);
+    }
+    public static synchronized boolean recoverIncompleteSession() {
+        try { if (STORE.load().isEmpty()) return true; }
+        catch (Exception exception) { return false; }
         return restoreDefaults();
     }
-
-    private static int backgroundCandidateCount() {
-        var observations = new cl.oxman.oxmangameoptimizer.performance.benchmark.WindowsBackgroundProcessSource()
-                .observe(java.time.Duration.ofMillis(250));
-        return new cl.oxman.oxmangameoptimizer.performance.benchmark.BackgroundProcessSelector()
-                .select(observations, -1, ProcessHandle.current().pid()).size();
+    private static OptimizationEngine recoveryEngine() throws java.io.IOException {
+        List<OptimizationAction> actions = new ArrayList<>();
+        actions.add(new PowerPlanAction(COMMANDS));
+        // Read-only compatibility with v1.1 snapshots; never planned by v1.2.
+        actions.add(new ServiceStopAction("DiagTrack", "Telemetría de diagnóstico", COMMANDS));
+        var state = STORE.load();
+        if (state.isPresent()) for (var change : state.get().changes()) {
+            if (!change.actionId().startsWith(BackgroundEcoQosAction.ID_PREFIX)) continue;
+            long pid = Long.parseLong(change.actionId().substring(BackgroundEcoQosAction.ID_PREFIX.length()));
+            // restore decodes and validates the exact saved identity; no PID-only mutation.
+            actions.add(new BackgroundEcoQosAction(new ProcessIdentity(pid, -1, "recovery"), QOS, LogManager::addLog));
+        }
+        return new OptimizationEngine(actions, STORE, LogManager::addLog);
     }
 }

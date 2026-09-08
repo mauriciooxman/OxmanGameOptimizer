@@ -61,9 +61,12 @@ public final class LogManager {
         String entry = "[" + LocalTime.now().format(TIME) + "] " + text;
         technicalEntries.add(entry);
         boolean clientVisible = visibleInClientMode(text, audience);
-        if (clientVisible) clientEntries.add(entry);
+        String clientEntry = audience == LogAudience.CLIENT ? entry
+                : "[" + LocalTime.now().format(TIME) + "] No se pudo completar una operación. Revisa el diagnóstico avanzado.";
+        if (clientVisible) clientEntries.add(clientEntry);
         if (logArea != null && (mode == ApplicationMode.ADVANCED || clientVisible)) {
-            Platform.runLater(() -> logArea.appendText(entry + "\n"));
+            String visibleEntry = mode == ApplicationMode.ADVANCED ? entry : clientEntry;
+            Platform.runLater(() -> logArea.appendText(visibleEntry + "\n"));
         }
     }
 
