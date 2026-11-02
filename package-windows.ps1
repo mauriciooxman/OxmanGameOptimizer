@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$JdkHome = $env:JAVA_HOME)
+param(
+    [string]$JdkHome = $env:JAVA_HOME,
+    [string]$DotnetPath
+)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -14,6 +17,8 @@ $packageInput = Join-Path $targetDir "jpackage-input"
 $jarName = "OxmanGameOptimizer-$productVersion.jar"
 $icon = Join-Path $projectRoot "src\main\resources\cl\oxman\oxmangameoptimizer\company-logo-gold.ico"
 $presentMon = Join-Path $projectRoot "tools\PresentMon.exe"
+$hardwareBuild = Join-Path $projectRoot "build-hardware-helper.ps1"
+$hardwareOutput = Join-Path $targetDir "hardware-helper"
 
 if ([string]::IsNullOrWhiteSpace($JdkHome)) {
     throw "Indique el JDK 22 con -JdkHome o JAVA_HOME."
@@ -28,7 +33,7 @@ $javaVersion = (& $java --version | Select-Object -First 1) -join ""
 if ($javaVersion -notmatch '^(?:openjdk|java) 22(?:\.|\s|$)') {
     throw "El empaquetado requiere JDK 22. Detectado: $javaVersion"
 }
-foreach ($requiredFile in @($icon, $presentMon)) {
+foreach ($requiredFile in @($icon, $presentMon, $hardwareBuild)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "Falta el archivo requerido: $requiredFile"
     }
@@ -74,6 +79,9 @@ if (Test-Path -LiteralPath $preservedReleaseRoot) {
     Remove-Item -LiteralPath $preservedReleaseRoot -Recurse -Force
 }
 
+& $hardwareBuild -DotnetPath $DotnetPath -OutputDirectory $hardwareOutput
+if ($LASTEXITCODE -ne 0) { throw "La compilacion de OxmanHardwareSensor fallo." }
+
 New-Item -ItemType Directory -Path $packageInput -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $targetDir $jarName) -Destination $packageInput -Force
 Copy-Item -Path (Join-Path $targetDir "standalone-libs\*.jar") -Destination $packageInput -Force
@@ -95,6 +103,9 @@ if ($LASTEXITCODE -ne 0) { throw "jpackage fallo." }
 $jpackageOutput = Join-Path $releaseRoot $productName
 if (-not (Test-Path -LiteralPath $jpackageOutput -PathType Container)) {
     throw "jpackage no genero la carpeta esperada: $jpackageOutput"
+}
+if (Test-Path -LiteralPath $releaseDir) {
+    Remove-Item -LiteralPath $releaseDir -Recurse -Force
 }
 Move-Item -LiteralPath $jpackageOutput -Destination $releaseDir
 $launcher = Join-Path $releaseDir "$productName.exe"
@@ -149,6 +160,8 @@ Remove-Item -LiteralPath $manifestWorkFile -Force
 $toolsDir = Join-Path $releaseDir "tools"
 New-Item -ItemType Directory -Path $toolsDir -Force | Out-Null
 Copy-Item -LiteralPath $presentMon -Destination (Join-Path $toolsDir "PresentMon.exe") -Force
+$hardwareDir = Join-Path $toolsDir "hardware"
+Copy-Item -LiteralPath $hardwareOutput -Destination $hardwareDir -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot "README.md") -Destination $releaseDir -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot "THIRD-PARTY-NOTICES.md") -Destination $releaseDir -Force
 
@@ -157,6 +170,17 @@ foreach ($requiredOutput in @(
     (Join-Path $releaseDir "runtime\bin\java.dll"),
     (Join-Path $releaseDir "app\$jarName"),
     (Join-Path $toolsDir "PresentMon.exe"),
+    (Join-Path $hardwareDir "OxmanHardwareSensor.exe"),
+    (Join-Path $hardwareDir "licenses\LibreHardwareMonitor-0.9.6\LICENSE"),
+    (Join-Path $hardwareDir "licenses\LibreHardwareMonitor-0.9.6\THIRD-PARTY-NOTICES.txt"),
+    (Join-Path $hardwareDir "licenses\BlackSharp.Core-1.0.7\LICENSE"),
+    (Join-Path $hardwareDir "licenses\DiskInfoToolkit-1.1.2\LICENSE"),
+    (Join-Path $hardwareDir "licenses\RAMSPDToolkit-NDD-1.4.2\LICENSE"),
+    (Join-Path $hardwareDir "licenses\HidSharp-2.6.4\LICENSE.txt"),
+    (Join-Path $hardwareDir "licenses\Mono.Posix.NETStandard-1.0.0\LICENSE"),
+    (Join-Path $hardwareDir "licenses\Mono.Posix.NETStandard-1.0.0\PATENTS.TXT"),
+    (Join-Path $hardwareDir "licenses\dotnet-runtime-8.0\LICENSE.txt"),
+    (Join-Path $hardwareDir "licenses\dotnet-runtime-8.0\ThirdPartyNotices.txt"),
     (Join-Path $releaseDir "README.md"),
     (Join-Path $releaseDir "THIRD-PARTY-NOTICES.md")
 )) {

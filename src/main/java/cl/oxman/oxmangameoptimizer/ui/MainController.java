@@ -29,7 +29,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.List;
+import java.util.OptionalDouble;
 import java.nio.file.Path;
 import java.time.Duration;
 
@@ -79,6 +81,14 @@ public class MainController {
                 thread.setDaemon(true);
                 return thread;
             });
+    private final ScheduledExecutorService temperatureExecutor =
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "cpu-temperature-monitor");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private final AtomicReference<OptionalDouble> cpuTemperature =
+            new AtomicReference<>(OptionalDouble.empty());
 
     @FXML private Label cpuLabel;
     @FXML private Label ramLabel;
@@ -86,6 +96,7 @@ public class MainController {
     @FXML private Label diskLabel;
     @FXML private Label osLabel;
     @FXML private Label cpuNameLabel;
+    @FXML private Label cpuTemperatureLabel;
     @FXML private Label cpuCoresLabel;
     @FXML private Label cpuFreqLabel;
     @FXML private Label statusLabel;
@@ -153,6 +164,8 @@ public class MainController {
         hardwareExecutor.scheduleAtFixedRate(
                 this::readHardwareUsage, 500, 1000, TimeUnit.MILLISECONDS);
         hardwareExecutor.scheduleAtFixedRate(this::detectRunningGame, 2, 2, TimeUnit.SECONDS);
+        temperatureExecutor.scheduleWithFixedDelay(
+                this::readCpuTemperature, 0, 1, TimeUnit.SECONDS);
     }
 
     private void discoverGames() {
@@ -186,6 +199,7 @@ public class MainController {
 
     private void loadHardwareInformation() {
         try {
+            HardwareMonitor.logCpuTemperatureDiagnosticOnce();
             String gpu = HardwareMonitor.getGpuName();
             String disk = HardwareMonitor.getDiskName();
             String os = HardwareMonitor.getOperatingSystem();
@@ -200,6 +214,7 @@ public class MainController {
                 diskLabel.setText(disk);
                 osLabel.setText(os);
                 cpuNameLabel.setText(cpuName);
+                updateCpuTemperatureControl(cpuTemperature.get());
                 cpuCoresLabel.setText(cores);
                 cpuFreqLabel.setText(frequency);
             });
@@ -238,6 +253,24 @@ public class MainController {
         ramBar.setProgress(ram / 100.0);
 
         // El estado principal representa el ciclo de optimización; las barras comunican la carga.
+    }
+
+    private void updateCpuTemperatureControl(OptionalDouble cpuTemperature) {
+        cpuTemperatureLabel.setText(CpuTemperaturePresentation.format(cpuTemperature));
+    }
+
+    private void readCpuTemperature() {
+        OptionalDouble reading;
+        try {
+            reading = HardwareMonitor.getCpuTemperatureCelsius();
+        } catch (RuntimeException | LinkageError exception) {
+            reading = OptionalDouble.empty();
+        }
+        cpuTemperature.set(reading);
+        OptionalDouble uiReading = reading;
+        if (!temperatureExecutor.isShutdown()) {
+            Platform.runLater(() -> updateCpuTemperatureControl(uiReading));
+        }
     }
 
     @FXML
@@ -338,7 +371,9 @@ public class MainController {
     }
 
     public void shutdown() {
+        temperatureExecutor.shutdownNow();
         hardwareExecutor.shutdownNow();
+        HardwareMonitor.shutdownCpuTemperatureMonitor();
         benchmarkCoordinator.close();
         priorityExperimentCoordinator.close();
         highQosExperimentCoordinator.close();

@@ -1,20 +1,38 @@
 package cl.oxman.oxmangameoptimizer.monitor;
 
+import oshi.PlatformEnum;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
 import oshi.hardware.GraphicsCard;
 import oshi.hardware.HardwareAbstractionLayer;
+import oshi.hardware.Sensors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class HardwareMonitor {
 
     private static final Logger LOG = LoggerFactory.getLogger(HardwareMonitor.class);
     private static final Initialization INITIALIZATION = initialize();
+    private static final boolean CPU_TEMPERATURE_SOURCE_IS_SPECIFIC =
+            SystemInfo.getCurrentPlatform() != PlatformEnum.WINDOWS;
+    private static final CpuTemperatureMonitor CPU_TEMPERATURE_MONITOR = new CpuTemperatureMonitor(
+            new OshiCpuTemperatureProvider(
+                    () -> hardware().getSensors().getCpuTemperature(), CPU_TEMPERATURE_SOURCE_IS_SPECIFIC),
+            new LibreHardwareMonitorCpuTemperatureProvider(
+                    LibreHardwareMonitorCpuTemperatureProvider.configuredExecutable()));
+    private static final AtomicBoolean CPU_TEMPERATURE_DIAGNOSTIC_LOGGED = new AtomicBoolean();
 
     // Guarda la lectura anterior para calcular el uso de CPU
     private static long[] previousTicks = INITIALIZATION.previousTicks();
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(
+                CPU_TEMPERATURE_MONITOR::close, "hardware-monitor-shutdown"));
+    }
 
     private static Initialization initialize() {
         try {
@@ -110,6 +128,49 @@ public class HardwareMonitor {
 
         return hz / 1_000_000_000.0;
 
+    }
+
+    /**
+     * Returns a validated CPU temperature when OSHI exposes a CPU-specific source.
+     * <p>
+     * OSHI 6.6.5 does not expose source provenance on Windows and may fall back to
+     * {@code MSAcpi_ThermalZoneTemperature}, which is not necessarily the CPU/package sensor.
+     * Those Windows readings are therefore rejected instead of presenting a fabricated value.
+     */
+    public static OptionalDouble getCpuTemperatureCelsius() {
+        return CPU_TEMPERATURE_MONITOR.readCelsius();
+    }
+
+    /** Stops the optional helper without affecting the remaining hardware metrics. */
+    public static void shutdownCpuTemperatureMonitor() {
+        CPU_TEMPERATURE_MONITOR.close();
+    }
+
+    /** Logs OSHI's raw reading once for diagnosis without exposing it as trusted UI telemetry. */
+    public static void logCpuTemperatureDiagnosticOnce() {
+        if (!CPU_TEMPERATURE_DIAGNOSTIC_LOGGED.compareAndSet(false, true)) {
+            return;
+        }
+
+        try {
+            Sensors sensors = hardware().getSensors();
+            LOG.info("OSHI temperature diagnostic provider: {}", sensors.getClass().getName());
+            double rawTemperature = sensors.getCpuTemperature();
+            LOG.info("OSHI cpuTemperature raw: {}", rawTemperature);
+            LOG.info("OSHI cpuTemperature raw state: {}", describeRawTemperature(rawTemperature));
+            LOG.info("OSHI temperature sensors exposed: aggregate getCpuTemperature() only; "
+                    + "individual sensor names and source provenance are not exposed by the Sensors API");
+        } catch (RuntimeException | LinkageError exception) {
+            LOG.warn("OSHI cpuTemperature raw: EXCEPTION ({})", rootCauseMessage(exception));
+        }
+    }
+
+    static String describeRawTemperature(double temperature) {
+        if (Double.isNaN(temperature)) return "NaN";
+        if (temperature == 0.0) return "ZERO";
+        if (temperature < 0.0) return "NEGATIVE";
+        if (!Double.isFinite(temperature)) return "POSITIVE_INFINITY";
+        return "POSITIVE_FINITE";
     }
 
     /*

@@ -25,4 +25,33 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 - Apache Commons IO 2.16.1 — Apache-2.0 — https://commons.apache.org/proper/commons-io/
 - Apache Commons Codec 1.16.1 — Apache-2.0 — https://commons.apache.org/proper/commons-codec/
 
+## CPU temperature helper
+
+`tools/hardware/OxmanHardwareSensor.exe` is a read-only, self-contained .NET 8
+helper used to query CPU temperature sensors on Windows. It does not install
+PawnIO or another driver. If the optional PawnIO driver is absent, the helper
+returns `PAWNIO_NOT_INSTALLED` and Oxman displays `Temperatura: N/D`.
+
+The resolved win-x64 publish graph includes:
+
+- LibreHardwareMonitorLib 0.9.6 — MPL-2.0 — source commit `3d331e3370efb858411f19511373eff65a218701`
+- BlackSharp.Core 1.0.7 — MPL-2.0 — source commit `c70b735c6cec123ee8a046ac4a0bc6c606f52cf0` — copyright Florian K.
+- DiskInfoToolkit 1.1.2 — MPL-2.0 — source commit `25319eae5781e75bcf141e844ceab2afe94d40ea` — copyright Florian K.
+- RAMSPDToolkit-NDD 1.4.2 — MPL-2.0 — source commit `3b47b960e0830fef344624ad5e389675d5f0a1ce` — copyright Florian K.
+- HidSharp 2.6.4 — Apache-2.0 — copyright 2010-2025 James F. Bellinger
+- Mono.Posix.NETStandard 1.0.0, including its win-x64 native helpers — official legacy license file referenced by its NuGet metadata
+- System.CodeDom 10.0.2, System.IO.Ports 10.0.3, System.Management 10.0.2 and System.Threading.AccessControl 10.0.3 — MIT — Microsoft Corporation
+- Microsoft .NET 8 self-contained runtime — MIT and bundled third-party notices
+
+The corresponding license texts, package metadata notes and pinned source URLs
+are distributed under `tools/hardware/licenses/`. Oxman does not modify the
+MPL-covered libraries. Their Source Code Form is available at the pinned commits
+recorded in each package directory.
+
+Mono.Posix.NETStandard 1.0.0 does not declare an SPDX expression in its NuGet
+metadata. Its official license URL redirects to the composite Mono `LICENSE`;
+that file and `PATENTS.TXT` are included verbatim. Applicability of the composite
+license to the exact managed and native 1.0.0 files requires additional review
+before commercial distribution.
+
 No dependencias de test se distribuyen en `standalone-libs`.

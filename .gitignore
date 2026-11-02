@@ -43,5 +43,9 @@ META-INF/git rm -r --cached installer
 /.maven-release-cache/
 /release*/
 
+# .NET helper build output
+/hardware/**/bin/
+/hardware/**/obj/
+
 # Local development dependency; do not redistribute without a packaging policy.
 /tools/PresentMon.exe

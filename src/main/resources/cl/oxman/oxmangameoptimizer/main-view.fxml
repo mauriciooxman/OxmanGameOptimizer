@@ -48,6 +48,7 @@
             <Label text="CPU" styleClass="section"/>
             <ProgressBar fx:id="cpuBar" maxWidth="Infinity"/>
             <Label fx:id="cpuLabel" text="CPU: 0%"/>
+            <Label fx:id="cpuTemperatureLabel" text="Temperatura: N/D" styleClass="hardware-info"/>
             <Label fx:id="cpuNameLabel" text="Procesador" wrapText="true" styleClass="hardware-info"/>
             <Label fx:id="cpuCoresLabel" text="Núcleos" wrapText="true" styleClass="hardware-info"/>
             <Label fx:id="cpuFreqLabel" text="Frecuencia" wrapText="true" styleClass="hardware-info"/>
