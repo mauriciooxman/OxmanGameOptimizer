@@ -14,6 +14,7 @@ import java.util.function.BiConsumer;
 public final class BoostOptimizer {
     private static final WindowsCommandRunner COMMANDS = new WindowsCommandRunner();
     private static final ProcessPowerThrottlingService QOS = new WindowsProcessPowerThrottlingService();
+    private static final ProcessPriorityController PRIORITIES = new WindowsProcessPriorityService();
     private static final DiagnosisThresholds THRESHOLDS = DiagnosisThresholds.DEFAULT;
     private static final SessionStateStore STORE = SessionStateStore.localAppData();
     private static OptimizationEngine engine;
@@ -55,12 +56,54 @@ public final class BoostOptimizer {
                     case ACTION_AVAILABLE -> ActionOutcome.Status.SKIPPED;
                 }, i.detail())));
         var report = new OptimizationReport(executed.applicable(), executed.applied(), executed.failed(), executed.fullyRestored(), outcomes);
+        report.outcomes().stream().filter(outcome -> PowerPlanAction.ID.equals(outcome.actionId()))
+                .findFirst().ifPresent(outcome -> LogManager.addClientLog(switch (outcome.status()) {
+                    case APPLIED -> "Plan Alto rendimiento: aplicado y verificado.";
+                    case ALREADY_OPTIMIZED -> "Plan Alto rendimiento o equivalente: ya activo.";
+                    case NOT_APPLICABLE -> "Plan Alto rendimiento: no disponible; " + outcome.detail();
+                    case FAILED -> "Plan Alto rendimiento: error; " + outcome.detail();
+                    case SKIPPED -> "Plan Alto rendimiento: omitido; " + outcome.detail();
+                }));
         LogManager.addClientLog(DiagnosisPresentation.summary(report, assessment));
         diagnosisListener.accept(assessment, report);
         return report;
     }
     public static CompletableFuture<OptimizationReport> applyBoostAsync(String gameName) {
         return CompletableFuture.supplyAsync(() -> applyBoost(gameName), EXECUTOR);
+    }
+    public static CompletableFuture<OptimizationReport> applyBoostAsync(GameProfile game) {
+        return CompletableFuture.supplyAsync(() -> {
+            OptimizationReport base = applyBoost(game);
+            if (base.hasCriticalFailure()) return base;
+            return combine(base, applyGamePriority(game));
+        }, EXECUTOR);
+    }
+
+    /** Applies HIGH only after the selected game's exact process identity is available. */
+    public static synchronized OptimizationReport applyGamePriority(GameProfile game) {
+        var identity = game.findRunningProcessIdentity();
+        if (identity.isEmpty()) {
+            var outcome = new ActionOutcome(ProcessPriorityAction.HIGH_ID_PREFIX + "pending",
+                    ActionOutcome.Status.NOT_APPLICABLE,
+                    "Juego todavía no iniciado; prioridad HIGH pendiente de detección");
+            LogManager.addLog(outcome.actionId() + " · " + outcome.status() + " · " + outcome.detail());
+            return new OptimizationReport(0, 0, 0, false, List.of(outcome));
+        }
+        if (engine == null) {
+            var outcome = new ActionOutcome("session", ActionOutcome.Status.FAILED,
+                    "No existe una sesión BOOST activa para registrar la prioridad");
+            return new OptimizationReport(0, 0, 1, false, List.of(outcome));
+        }
+        ProcessPriorityAction action = ProcessPriorityAction.high(identity.get(), PRIORITIES, LogManager::addLog);
+        OptimizationReport report = engine.applyAdditional(game.toString(), action);
+        report.outcomes().forEach(outcome -> LogManager.addClientLog(switch (outcome.status()) {
+            case APPLIED -> "Prioridad HIGH aplicada y verificada para " + identity.get().processName() + ".";
+            case ALREADY_OPTIMIZED -> "Prioridad HIGH ya estaba activa para el juego.";
+            case NOT_APPLICABLE -> "Prioridad HIGH no disponible: " + outcome.detail();
+            case FAILED -> "Prioridad HIGH no aplicada: " + outcome.detail();
+            case SKIPPED -> "Prioridad HIGH omitida: " + outcome.detail();
+        }));
+        return report;
     }
     public static synchronized boolean restoreDefaults() { return restoreReport().fullyRestored(); }
     private static synchronized OptimizationReport restoreReport() {
@@ -83,6 +126,15 @@ public final class BoostOptimizer {
         catch (Exception exception) { return false; }
         return restoreDefaults();
     }
+    public static CompletableFuture<Boolean> recoverIncompleteSessionAsync() {
+        return CompletableFuture.supplyAsync(BoostOptimizer::recoverIncompleteSession, EXECUTOR);
+    }
+    private static OptimizationReport combine(OptimizationReport first, OptimizationReport second) {
+        List<ActionOutcome> outcomes = new ArrayList<>(first.outcomes());
+        outcomes.addAll(second.outcomes());
+        return new OptimizationReport(first.applicable() + second.applicable(),
+                first.applied() + second.applied(), first.failed() + second.failed(), false, outcomes);
+    }
     private static OptimizationEngine recoveryEngine() throws java.io.IOException {
         List<OptimizationAction> actions = new ArrayList<>();
         actions.add(new PowerPlanAction(COMMANDS));
@@ -90,10 +142,14 @@ public final class BoostOptimizer {
         actions.add(new ServiceStopAction("DiagTrack", "Telemetría de diagnóstico", COMMANDS));
         var state = STORE.load();
         if (state.isPresent()) for (var change : state.get().changes()) {
-            if (!change.actionId().startsWith(BackgroundEcoQosAction.ID_PREFIX)) continue;
-            long pid = Long.parseLong(change.actionId().substring(BackgroundEcoQosAction.ID_PREFIX.length()));
-            // restore decodes and validates the exact saved identity; no PID-only mutation.
-            actions.add(new BackgroundEcoQosAction(new ProcessIdentity(pid, -1, "recovery"), QOS, LogManager::addLog));
+            if (change.actionId().startsWith(BackgroundEcoQosAction.ID_PREFIX)) {
+                long pid = Long.parseLong(change.actionId().substring(BackgroundEcoQosAction.ID_PREFIX.length()));
+                // restore decodes and validates the exact saved identity; no PID-only mutation.
+                actions.add(new BackgroundEcoQosAction(new ProcessIdentity(pid, 1, "recovery"), QOS, LogManager::addLog));
+            } else if (change.actionId().startsWith(ProcessPriorityAction.HIGH_ID_PREFIX)) {
+                long pid = Long.parseLong(change.actionId().substring(ProcessPriorityAction.HIGH_ID_PREFIX.length()));
+                actions.add(ProcessPriorityAction.highRecovery(pid, PRIORITIES, LogManager::addLog));
+            }
         }
         return new OptimizationEngine(actions, STORE, LogManager::addLog);
     }

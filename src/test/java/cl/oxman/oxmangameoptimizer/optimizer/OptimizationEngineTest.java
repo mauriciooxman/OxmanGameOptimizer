@@ -66,6 +66,51 @@ class OptimizationEngineTest {
         assertTrue(events.isEmpty());
     }
 
+    @Test void addsDeferredActionToSameJournalAndAvoidsDuplicateApplication() {
+        List<String> events = new ArrayList<>();
+        FakeAction power = new FakeAction("power", events, true);
+        FakeAction priority = new FakeAction("priority-high:42", events, true);
+        OptimizationEngine engine = new OptimizationEngine(List.of(power),
+                new SessionStateStore(temporary.resolve("deferred.json")), ignored -> { });
+
+        assertEquals(1, engine.apply("CS2").applied());
+        assertEquals(1, engine.applyAdditional("CS2", priority).applied());
+        assertEquals(0, engine.applyAdditional("CS2", priority).applied());
+        assertTrue(engine.restore().fullyRestored());
+        assertEquals(List.of("apply:power", "apply:priority-high:42",
+                "restore:priority-high:42:old-priority-high:42", "restore:power:old-power"), events);
+    }
+
+    @Test void persistedDeferredActionRecoversAfterUnexpectedShutdown() {
+        List<String> events = new ArrayList<>();
+        FakeAction power = new FakeAction("power", events, true);
+        FakeAction priority = new FakeAction("priority-high:42", events, true);
+        SessionStateStore store = new SessionStateStore(temporary.resolve("crash.json"));
+        OptimizationEngine active = new OptimizationEngine(List.of(power), store, ignored -> { });
+        active.apply("CS2");
+        active.applyAdditional("CS2", priority);
+
+        OptimizationEngine recovered = new OptimizationEngine(List.of(power, priority), store, ignored -> { });
+        assertTrue(recovered.restore().fullyRestored());
+        assertFalse(recovered.hasIncompleteSession());
+        assertEquals(List.of("apply:power", "apply:priority-high:42",
+                "restore:priority-high:42:old-priority-high:42", "restore:power:old-power"), events);
+    }
+
+    @Test void partialFailureDoesNotPreventLaterIndependentAction() {
+        List<String> events = new ArrayList<>();
+        FakeAction failedPower = new FakeAction("power", events, false);
+        FakeAction priority = new FakeAction("priority-high:42", events, true);
+        OptimizationEngine engine = new OptimizationEngine(List.of(failedPower),
+                new SessionStateStore(temporary.resolve("partial.json")), ignored -> { });
+
+        assertEquals(1, engine.apply("CS2").failed());
+        assertEquals(1, engine.applyAdditional("CS2", priority).applied());
+        assertTrue(engine.restore().fullyRestored());
+        assertEquals(List.of("apply:power", "apply:priority-high:42",
+                "restore:priority-high:42:old-priority-high:42"), events);
+    }
+
     private static final class FakeAction implements OptimizationAction {
         private final String id;
         private final List<String> events;

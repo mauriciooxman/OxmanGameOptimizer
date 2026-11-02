@@ -1,12 +1,17 @@
 package cl.oxman.oxmangameoptimizer.performance.benchmark;
 
+import cl.oxman.oxmangameoptimizer.game.GameProfile;
 import cl.oxman.oxmangameoptimizer.optimizer.OptimizationReport;
+import cl.oxman.oxmangameoptimizer.optimizer.action.ActionOutcome;
+import cl.oxman.oxmangameoptimizer.optimizer.action.PowerPlanAction;
+import cl.oxman.oxmangameoptimizer.optimizer.action.ProcessPriorityAction;
 import cl.oxman.oxmangameoptimizer.performance.PerformanceLabState;
 import cl.oxman.oxmangameoptimizer.performance.PerformanceSample;
 import cl.oxman.oxmangameoptimizer.performance.PerformanceSnapshot;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -69,6 +74,156 @@ class BenchmarkSessionCoordinatorTest {
         assertTrue(messages.contains("Proceso objetivo: cs2.exe"));
         assertTrue(messages.contains("PresentMon: iniciando captura BEFORE"));
         assertTrue(messages.contains("Duración: 30 segundos"));
+    }
+
+    @Test void gameProfileStartUsesProfileAwareBoostApplication() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost();
+        GameProfile profile = new GameProfile("test:game", "Test Game", java.util.Set.of("game.exe"), null, null);
+        coordinator = create(capture, boost, record -> { }, new ArrayList<>());
+
+        coordinator.start(profile, target(), Duration.ofSeconds(30)).join();
+
+        assertSame(profile, boost.appliedProfile);
+        assertEquals(1, boost.applies.get());
+    }
+
+    @Test void highPriorityFailureInvalidatesAfterAndRestoresAppliedChanges() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost(); boost.report = boostReport(ActionOutcome.Status.APPLIED, ActionOutcome.Status.FAILED);
+        AtomicInteger saved = new AtomicInteger(); List<String> messages = new ArrayList<>();
+        coordinator = create(capture, boost, record -> saved.incrementAndGet(), new ArrayList<>(), messages);
+
+        assertThrows(CompletionException.class,
+                () -> coordinator.start(profile(), target(), Duration.ofSeconds(30)).join());
+
+        assertEquals(1, capture.stops.get());
+        assertEquals(1, boost.restores.get());
+        assertEquals(0, saved.get());
+        assertTrue(messages.stream().anyMatch(message -> message.contains("process-priority-high")
+                && message.contains("incompleta")));
+    }
+
+    @Test void powerPlanFailureInvalidatesAfterAndRestoresHighPriority() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost(); boost.report = boostReport(ActionOutcome.Status.FAILED, ActionOutcome.Status.APPLIED);
+        AtomicInteger saved = new AtomicInteger();
+        coordinator = create(capture, boost, record -> saved.incrementAndGet(), new ArrayList<>());
+
+        assertThrows(CompletionException.class,
+                () -> coordinator.start(profile(), target(), Duration.ofSeconds(30)).join());
+
+        assertEquals(1, capture.stops.get());
+        assertEquals(1, boost.restores.get());
+        assertEquals(0, saved.get());
+    }
+
+    @Test void completeBoostConfigurationAllowsAfterAndPersistence() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost(); AtomicInteger saved = new AtomicInteger();
+        coordinator = create(capture, boost, record -> saved.incrementAndGet(), new ArrayList<>());
+
+        coordinator.start(profile(), target(), Duration.ofSeconds(30)).join();
+
+        assertEquals(2, capture.stops.get());
+        assertEquals(1, saved.get());
+        assertEquals(1, boost.restores.get());
+    }
+
+    @Test void alreadyActivePowerPlanAndHighPriorityAreValidConfiguration() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost();
+        boost.report = boostReport(ActionOutcome.Status.ALREADY_OPTIMIZED, ActionOutcome.Status.ALREADY_OPTIMIZED);
+        AtomicInteger saved = new AtomicInteger();
+        coordinator = create(capture, boost, record -> saved.incrementAndGet(), new ArrayList<>());
+
+        coordinator.start(profile(), target(), Duration.ofSeconds(30)).join();
+
+        assertEquals(2, capture.stops.get());
+        assertEquals(1, saved.get());
+    }
+
+    @Test void unavailablePowerPlanIsRecordedWhileVerifiedHighRemainsValid() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost();
+        boost.report = boostReport(ActionOutcome.Status.NOT_APPLICABLE, ActionOutcome.Status.APPLIED);
+        AtomicInteger saved = new AtomicInteger(); List<String> messages = new ArrayList<>();
+        coordinator = create(capture, boost, record -> saved.incrementAndGet(), new ArrayList<>(), messages);
+
+        coordinator.start(profile(), target(), Duration.ofSeconds(30)).join();
+
+        assertEquals(1, saved.get());
+        assertTrue(messages.stream().anyMatch(message -> message.contains("power-plan=NOT_APPLICABLE")));
+    }
+
+    @Test void unavailableRequiredHighPriorityInvalidatesAfter() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost();
+        boost.report = boostReport(ActionOutcome.Status.APPLIED, ActionOutcome.Status.NOT_APPLICABLE);
+        AtomicInteger saved = new AtomicInteger();
+        coordinator = create(capture, boost, record -> saved.incrementAndGet(), new ArrayList<>());
+
+        assertThrows(CompletionException.class,
+                () -> coordinator.start(profile(), target(), Duration.ofSeconds(30)).join());
+
+        assertEquals(1, capture.stops.get());
+        assertEquals(1, boost.restores.get());
+        assertEquals(0, saved.get());
+    }
+
+    @Test void pendingRecoveryDelaysBeforeCapture() throws Exception {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost(); boost.preparation = new CompletableFuture<>();
+        coordinator = create(capture, boost, record -> { }, new ArrayList<>());
+
+        CompletableFuture<BenchmarkOutcome> future = coordinator.start(target(), Duration.ofSeconds(30));
+        Thread.sleep(100);
+        assertTrue(capture.processes.isEmpty());
+        boost.preparation.complete(BenchmarkBoostService.BaselinePreparation.completed());
+
+        future.get(2, TimeUnit.SECONDS);
+        assertEquals(2, capture.stops.get());
+    }
+
+    @Test void completedRecoveryAllowsBeforeCapture() {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost();
+        coordinator = create(capture, boost, record -> { }, new ArrayList<>());
+
+        coordinator.start(target(), Duration.ofSeconds(30)).join();
+
+        assertEquals(1, boost.preparations.get());
+        assertEquals(2, capture.stops.get());
+    }
+
+    @Test void failedRecoveryBlocksBenchmarkWithoutDeletingOrApplyingAnything() {
+        FakeCapture capture = new FakeCapture(result(120, 10));
+        FakeBoost boost = new FakeBoost();
+        boost.preparation = CompletableFuture.completedFuture(
+                BenchmarkBoostService.BaselinePreparation.blocked("snapshot pendiente"));
+        coordinator = create(capture, boost, record -> fail(), new ArrayList<>());
+
+        CompletionException error = assertThrows(CompletionException.class,
+                () -> coordinator.start(target(), Duration.ofSeconds(30)).join());
+
+        assertTrue(error.getCause().getMessage().contains("snapshot pendiente"));
+        assertTrue(capture.processes.isEmpty());
+        assertEquals(0, boost.applies.get());
+        assertEquals(0, boost.restores.get());
+    }
+
+    @Test void secondBenchmarkIsRejectedWhileFirstWaitsForRecovery() throws Exception {
+        FakeCapture capture = new FakeCapture(result(120, 10), result(120, 8));
+        FakeBoost boost = new FakeBoost(); boost.preparation = new CompletableFuture<>();
+        coordinator = create(capture, boost, record -> { }, new ArrayList<>());
+
+        CompletableFuture<BenchmarkOutcome> first = coordinator.start(target(), Duration.ofSeconds(30));
+        CompletableFuture<BenchmarkOutcome> second = coordinator.start(target(), Duration.ofSeconds(30));
+
+        assertThrows(CompletionException.class, second::join);
+        assertTrue(capture.processes.isEmpty());
+        boost.preparation.complete(BenchmarkBoostService.BaselinePreparation.completed());
+        first.get(2, TimeUnit.SECONDS);
     }
 
     @Test void invalidBeforeDoesNotApplyBoostOrSave() {
@@ -168,20 +323,44 @@ class BenchmarkSessionCoordinatorTest {
     }
 
     private BenchmarkSessionCoordinator create(GamePerformanceCapture capture, FakeBoost boost, BenchmarkPersistence store, List<PerformanceLabState> states) {
+        return create(capture, boost, store, states, new ArrayList<>());
+    }
+    private BenchmarkSessionCoordinator create(GamePerformanceCapture capture, FakeBoost boost, BenchmarkPersistence store,
+            List<PerformanceLabState> states, List<String> messages) {
         PerformanceSnapshot snapshot = PerformanceSnapshot.from(List.of(new PerformanceSample(5, 6, 10, 100)), "Balanced");
         return new BenchmarkSessionCoordinator(() -> CompletableFuture.completedFuture(snapshot), capture, boost, store,
-                (state, message) -> states.add(state), Duration.ZERO, 100);
+                (state, message) -> { states.add(state); messages.add(message); }, Duration.ZERO, 100);
     }
     private static BenchmarkTarget target() { return new BenchmarkTarget("Test Game", () -> Optional.of("game.exe"), () -> true); }
+    private static GameProfile profile() {
+        return new GameProfile("test:game", "Test Game", java.util.Set.of("game.exe"), Path.of("C:\\Games\\Test"), null);
+    }
+    private static OptimizationReport boostReport(ActionOutcome.Status power, ActionOutcome.Status high) {
+        List<ActionOutcome> outcomes = List.of(
+                new ActionOutcome(PowerPlanAction.ID, power, "power " + power),
+                new ActionOutcome(ProcessPriorityAction.HIGH_ID_PREFIX + "42", high, "high " + high));
+        int applied = (power == ActionOutcome.Status.APPLIED ? 1 : 0) + (high == ActionOutcome.Status.APPLIED ? 1 : 0);
+        int failed = (power == ActionOutcome.Status.FAILED ? 1 : 0) + (high == ActionOutcome.Status.FAILED ? 1 : 0);
+        return new OptimizationReport(2, applied, failed, false, outcomes);
+    }
     private static GamePerformanceResult result(long frames, double frameMs) {
         return new GamePerformanceResult(OptionalDouble.of(1000 / frameMs), OptionalDouble.of(900 / frameMs),
                 OptionalDouble.of(frameMs), OptionalDouble.empty(), OptionalDouble.empty(), frames,
                 Duration.ofSeconds(30), "game.exe", Instant.now());
     }
     private static final class FakeBoost implements BenchmarkBoostService {
-        AtomicInteger applies = new AtomicInteger(), restores = new AtomicInteger(); RuntimeException applyFailure; boolean restoreSuccess = true;
+        AtomicInteger preparations = new AtomicInteger(), applies = new AtomicInteger(), restores = new AtomicInteger();
+        RuntimeException applyFailure; boolean restoreSuccess = true;
+        CompletableFuture<BaselinePreparation> preparation = CompletableFuture.completedFuture(BaselinePreparation.completed());
+        OptimizationReport report = boostReport(ActionOutcome.Status.APPLIED, ActionOutcome.Status.APPLIED);
+        GameProfile appliedProfile;
+        public CompletableFuture<BaselinePreparation> prepareBaseline() { preparations.incrementAndGet(); return preparation; }
         public CompletableFuture<OptimizationReport> apply(String game) { applies.incrementAndGet(); return applyFailure == null
-                ? CompletableFuture.completedFuture(new OptimizationReport(2, 2, false)) : CompletableFuture.failedFuture(applyFailure); }
+                ? CompletableFuture.completedFuture(report) : CompletableFuture.failedFuture(applyFailure); }
+        @Override public CompletableFuture<OptimizationReport> apply(GameProfile game) {
+            appliedProfile = game;
+            return apply(game.toString());
+        }
         public CompletableFuture<OptimizationReport> restore() { restores.incrementAndGet(); return CompletableFuture.completedFuture(new OptimizationReport(2, 2, restoreSuccess)); }
     }
     private static final class FakeCapture implements GamePerformanceCapture {

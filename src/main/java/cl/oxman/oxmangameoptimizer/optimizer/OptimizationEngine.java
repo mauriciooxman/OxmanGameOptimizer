@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -31,7 +32,7 @@ public final class OptimizationEngine {
 
     public OptimizationEngine(List<OptimizationAction> actions, SessionStateStore store, Consumer<String> log,
                               boolean includeExperimental) {
-        this.actions = List.copyOf(actions);
+        this.actions = new ArrayList<>(actions);
         this.store = store;
         this.log = log;
         this.includeExperimental = includeExperimental;
@@ -46,10 +47,53 @@ public final class OptimizationEngine {
                 List.of(new ActionOutcome("session", FAILED, "Restauración pendiente; snapshot conservado")));
         if (plannedActionIds.isEmpty()) return new OptimizationReport(0, 0, 0, true);
         current = SessionState.begin(gameName);
-        if (!persist()) return new OptimizationReport(0, 0, 1, false);
+        if (!persist()) {
+            current = null;
+            return new OptimizationReport(0, 0, 1, false,
+                    List.of(new ActionOutcome("session", FAILED, "Snapshot no disponible; BOOST cancelado")));
+        }
+        return execute(actions, plannedActionIds);
+    }
+
+    /**
+     * Adds one reversible action to the active journal. This supports state that only
+     * becomes available after BOOST starts, such as the real game process identity.
+     */
+    public synchronized OptimizationReport applyAdditional(String gameName, OptimizationAction action) {
+        Objects.requireNonNull(gameName);
+        Objects.requireNonNull(action);
+        boolean newSession = false;
+        if (current == null) {
+            if (hasIncompleteSession()) return new OptimizationReport(0, 0, 1, false,
+                    List.of(new ActionOutcome("session", FAILED, "Restauración pendiente; snapshot conservado")));
+            current = SessionState.begin(gameName);
+            newSession = true;
+            if (!persist()) {
+                current = null;
+                return new OptimizationReport(0, 0, 1, false,
+                        List.of(new ActionOutcome("session", FAILED, "Snapshot no disponible; acción cancelada")));
+            }
+        }
+        if (current.changes().stream().anyMatch(change -> change.actionId().equals(action.id()))) {
+            return new OptimizationReport(1, 0, 0, false,
+                    List.of(new ActionOutcome(action.id(), ALREADY_OPTIMIZED,
+                            "Acción ya registrada para esta sesión")));
+        }
+        actions.stream().filter(existing -> existing.id().equals(action.id())).findFirst()
+                .ifPresentOrElse(ignored -> { }, () -> actions.add(action));
+        OptimizationReport report = execute(List.of(action), Set.of(action.id()));
+        if (newSession && report.applicable() == 0 && report.failed() == 0
+                && current.changes().isEmpty()) {
+            try { store.complete(); current = null; }
+            catch (IOException exception) { log.accept("⚠ No se pudo cerrar el snapshot vacío: " + exception.getMessage()); }
+        }
+        return report;
+    }
+
+    private OptimizationReport execute(List<OptimizationAction> candidates, Set<String> plannedActionIds) {
         int applicable = 0, applied = 0, failed = 0;
         List<ActionOutcome> outcomes = new ArrayList<>();
-        for (OptimizationAction action : actions) {
+        for (OptimizationAction action : candidates) {
             if (!plannedActionIds.contains(action.id())) continue;
             if (!action.isReversible() || (action.safety() == OptimizationSafety.EXPERIMENTAL && !includeExperimental)) {
                 outcomes.add(new ActionOutcome(action.id(), SKIPPED, "Acción no permitida"));
@@ -58,7 +102,7 @@ public final class OptimizationEngine {
             boolean journaled = false;
             try {
                 if (!action.isSupported()) {
-                    outcomes.add(new ActionOutcome(action.id(), NOT_APPLICABLE, "No disponible"));
+                    outcomes.add(new ActionOutcome(action.id(), NOT_APPLICABLE, action.unsupportedDetail()));
                     continue;
                 }
                 applicable++;

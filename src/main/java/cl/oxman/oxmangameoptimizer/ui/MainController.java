@@ -150,10 +150,12 @@ public class MainController {
                 + " · Capture test: " + diagnostic.captureTest());
 
         hardwareExecutor.execute(this::loadHardwareInformation);
-        hardwareExecutor.execute(() -> {
-            boolean recovered = GamingSessionManager.recoverIncompleteSession();
-            if (!recovered) Platform.runLater(() -> statusLabel.setText("Restauración pendiente; revisa el registro"));
-        });
+        benchmarkButton.setDisable(true);
+        GamingSessionManager.recoverIncompleteSessionAsync().whenComplete((recovered, error) -> Platform.runLater(() -> {
+            boolean ready = error == null && Boolean.TRUE.equals(recovered);
+            benchmarkButton.setDisable(!ready);
+            if (!ready) statusLabel.setText("Restauración pendiente; benchmark bloqueado; revisa el registro");
+        }));
         hardwareExecutor.execute(() -> DefaultExperimentalConfigurationService.recoverIncomplete(
                 new WindowsProcessPriorityService(), LogManager::addLog));
         hardwareExecutor.execute(() -> DefaultExperimentalConfigurationService.recoverIncomplete(

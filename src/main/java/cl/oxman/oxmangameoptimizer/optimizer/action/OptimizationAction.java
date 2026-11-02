@@ -5,6 +5,7 @@ public interface OptimizationAction {
     String name();
     String description();
     boolean isSupported();
+    default String unsupportedDetail() { return "No disponible"; }
     boolean requiresAdministrator();
     boolean isReversible();
     default OptimizationSafety safety() { return OptimizationSafety.SAFE; }

@@ -59,10 +59,18 @@ public final class BenchmarkSessionCoordinator implements AutoCloseable {
     }
 
     public CompletableFuture<BenchmarkOutcome> start(GameProfile game, Duration duration) {
-        return start(new BenchmarkTarget(game.toString(), game::findRunningProcessName, game::isRunning), duration);
+        return start(game, new BenchmarkTarget(game.toString(), game::findRunningProcessName, game::isRunning), duration);
+    }
+
+    CompletableFuture<BenchmarkOutcome> start(GameProfile profile, BenchmarkTarget target, Duration duration) {
+        return start(target, duration, profile);
     }
 
     public CompletableFuture<BenchmarkOutcome> start(BenchmarkTarget game, Duration duration) {
+        return start(game, duration, null);
+    }
+
+    private CompletableFuture<BenchmarkOutcome> start(BenchmarkTarget game, Duration duration, GameProfile profile) {
         if (!ALLOWED_DURATIONS.contains(duration.toSeconds()) || duration.toMillis() != duration.toSeconds() * 1000)
             return CompletableFuture.failedFuture(new IllegalArgumentException("Capture duration must be 30, 60 or 120 seconds"));
         if (!capture.isAvailable()) return CompletableFuture.failedFuture(new IllegalStateException("PresentMon is not available"));
@@ -73,21 +81,37 @@ public final class BenchmarkSessionCoordinator implements AutoCloseable {
             return CompletableFuture.failedFuture(new IllegalStateException("Another system operation is active"));
         }
         cancelled.set(false); boostApplied.set(false);
-        transition(PerformanceLabState.WAITING_FOR_GAME, "Esperando proceso de " + game.gameName());
+        transition(PerformanceLabState.WAITING_FOR_GAME, "Verificando que BEFORE no tenga BOOST activo");
         var monitor = scheduler.scheduleAtFixedRate(() -> {
             PerformanceLabState current = state.get();
             if ((current == PerformanceLabState.CAPTURING || current == PerformanceLabState.CAPTURING_OPTIMIZED)
                     && !game.running().getAsBoolean()) cancel("game process ended");
         }, 1, 1, TimeUnit.SECONDS);
 
-        running = waitForProcess(game, Duration.ofMinutes(2))
+        running = boost.prepareBaseline().thenCompose(preparation -> {
+                    if (!preparation.ready()) throw new CompletionException(
+                            new IllegalStateException("BEFORE bloqueado: " + preparation.detail()));
+                    transition(PerformanceLabState.WAITING_FOR_GAME, "Esperando proceso de " + game.gameName());
+                    return waitForProcess(game, Duration.ofMinutes(2));
+                })
                 .thenCompose(process -> capturePair(game.gameName(), process, duration, false))
                 .thenCompose(before -> {
                     checkCancelled(); validate(before.game());
                     transition(PerformanceLabState.APPLYING_BOOST, "Aplicando Competitive Mode");
                     boostApplied.set(true);
-                    return boost.apply(game.gameName()).thenApply(report -> {
+                    CompletableFuture<OptimizationReport> application = profile == null
+                            ? boost.apply(game.gameName()) : boost.apply(profile);
+                    return application.thenApply(report -> {
                         if (report.hasCriticalFailure()) throw new CompletionException(new IllegalStateException("Critical boost failure"));
+                        if (profile != null) {
+                            OptimizationReport.ConfigurationCheck check = report.validateBenchmarkConfiguration(true);
+                            if (!check.complete()) {
+                                observer.accept(state.get(), "Configuración BOOST incompleta: " + check.detail());
+                                throw new CompletionException(new IllegalStateException(
+                                        "Configuración BOOST incompleta: " + check.detail()));
+                            }
+                            observer.accept(state.get(), "Configuración BOOST verificada: " + check.detail());
+                        }
                         observer.accept(state.get(), "Boost: " + report.applied() + " applied, " + report.omitted() + " omitted, " + report.failed() + " failed");
                         return new Before(before, report);
                     });

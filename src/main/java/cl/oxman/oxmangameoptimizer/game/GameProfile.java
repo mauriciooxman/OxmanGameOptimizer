@@ -37,6 +37,11 @@ public final class GameProfile {
         return new GameProfile(id, name, Set.of(), directory, launchUri);
     }
 
+    public static GameProfile counterStrike2(Path installDirectory) {
+        return new GameProfile("steam:730", "Counter-Strike 2", Set.of("cs2.exe"),
+                Objects.requireNonNull(installDirectory), "steam://rungameid/730");
+    }
+
     public boolean launch() {
         if (launchUri == null || launchUri.isBlank()) return false;
         try {
@@ -52,13 +57,17 @@ public final class GameProfile {
 
     public boolean matches(ProcessHandle process) {
         var command = process.info().command();
-        if (command.isEmpty()) return false;
+        try { return command.isPresent() && matchesExecutable(Path.of(command.get())); }
+        catch (RuntimeException exception) { return false; }
+    }
+
+    boolean matchesExecutable(Path command) {
+        if (installDirectory == null) return false;
         try {
-            Path executable = Path.of(command.get()).toAbsolutePath().normalize();
+            Path executable = command.toAbsolutePath().normalize();
             String fileName = executable.getFileName().toString().toLowerCase(Locale.ROOT);
-            if (processNames.contains(fileName)) return true;
-            return installDirectory != null && executable.startsWith(installDirectory)
-                    && !isLauncherOrHelper(fileName);
+            if (!executable.startsWith(installDirectory)) return false;
+            return processNames.isEmpty() ? !isLauncherOrHelper(fileName) : processNames.contains(fileName);
         } catch (RuntimeException exception) {
             return false;
         }
@@ -66,7 +75,10 @@ public final class GameProfile {
 
     public boolean isRunning() { return findRunningProcess().isPresent(); }
     public Optional<ProcessHandle> findRunningProcess() {
-        List<ProcessHandle> matches = ProcessHandle.allProcesses().filter(this::matches).toList();
+        return selectUniqueRunningProcess(ProcessHandle.allProcesses().toList());
+    }
+    Optional<ProcessHandle> selectUniqueRunningProcess(List<ProcessHandle> processes) {
+        List<ProcessHandle> matches = processes.stream().filter(this::matches).toList();
         return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
     }
     /** Returns empty for zero or multiple candidates; experiments never choose an arbitrary PID. */

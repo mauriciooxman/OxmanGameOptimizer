@@ -19,6 +19,59 @@ class ProcessPriorityActionTest {
                 "Priority restore: ABOVE_NORMAL (0x00008000) -> NORMAL (0x00000020)",
                 "Priority restore verified: NORMAL (0x00000020)"), logs);
     }
+    @Test void explicitBoostSetsHighVerifiesAndRestoresNormal() {
+        Fake fake = new Fake(ProcessPriority.NORMAL); List<String> logs = new ArrayList<>();
+        ProcessIdentity identity = new ProcessIdentity(42, 1234, "cs2.exe");
+        var action = ProcessPriorityAction.high(identity, fake, logs::add);
+        assertEquals(OptimizationSafety.SAFE, action.safety());
+        assertEquals(ProcessPriorityAction.HIGH_ID_PREFIX + "42", action.id());
+        assertTrue(action.isSupported());
+        assertTrue(action.apply().success());
+        assertEquals(ProcessPriority.HIGH, fake.value);
+        assertTrue(action.restore(action.originalState()).success());
+        assertEquals(ProcessPriority.NORMAL, fake.value);
+        assertTrue(logs.getFirst().contains("HIGH (0x00000080)"));
+    }
+    @Test void highPermissionFailureIsReportedAndOriginalRemainsRecoverable() {
+        Fake fake = new Fake(ProcessPriority.NORMAL);
+        fake.setFailure = ProcessPriorityException.Reason.ACCESS_DENIED;
+        var action = ProcessPriorityAction.high(new ProcessIdentity(42, 1234, "cs2.exe"), fake, ignored -> { });
+        assertTrue(action.isSupported());
+        String snapshot = action.prepareOriginalState();
+        OptimizationResult result = action.apply();
+        assertFalse(result.success());
+        assertTrue(result.error().contains("rechazó"));
+        fake.setFailure = null;
+        assertTrue(action.restore(snapshot).success());
+        assertEquals(ProcessPriority.NORMAL, fake.value);
+    }
+    @Test void highReadPermissionFailureIsAnErrorWithoutAnyWrite() {
+        Fake fake = new Fake(ProcessPriority.NORMAL);
+        fake.readFailure = ProcessPriorityException.Reason.ACCESS_DENIED;
+        var action = ProcessPriorityAction.high(new ProcessIdentity(42, 1234, "cs2.exe"), fake, ignored -> { });
+        assertTrue(action.isSupported());
+        OptimizationResult result = action.apply();
+        assertFalse(result.success());
+        assertTrue(result.error().contains("rechazó"));
+        assertEquals(0, fake.sets);
+    }
+    @Test void highActionRejectsReusedPidBeforeAnyWrite() {
+        Fake fake = new Fake(ProcessPriority.NORMAL); fake.same = false;
+        var action = ProcessPriorityAction.high(new ProcessIdentity(42, 1234, "cs2.exe"), fake, ignored -> { });
+        assertFalse(action.isSupported());
+        assertTrue(action.unsupportedDetail().contains("PID"));
+        assertEquals(0, fake.sets);
+    }
+    @Test void persistedHighSnapshotCanBeRestoredByRecoveryAction() {
+        Fake fake = new Fake(ProcessPriority.NORMAL);
+        var active = ProcessPriorityAction.high(new ProcessIdentity(42, 1234, "cs2.exe"), fake, ignored -> { });
+        assertTrue(active.apply().success());
+        assertEquals(ProcessPriority.HIGH, fake.value);
+
+        var recovery = ProcessPriorityAction.highRecovery(42, fake, ignored -> { });
+        assertTrue(recovery.restore(active.originalState()).success());
+        assertEquals(ProcessPriority.NORMAL, fake.value);
+    }
     @Test void originalAboveNormalIsNotChanged() {
         Fake fake = new Fake(ProcessPriority.ABOVE_NORMAL); var action = new ProcessPriorityAction(42, fake);
         assertFalse(action.apply().changed()); assertEquals(0, fake.sets);
@@ -57,11 +110,22 @@ class ProcessPriorityActionTest {
         }
     }
     private static final class Fake implements ProcessPriorityController {
-        ProcessPriority value; boolean same = true, ignoreAbove; int sets; ProcessPriorityException.Reason failure;
+        ProcessPriority value; boolean same = true, ignoreAbove; int sets;
+        ProcessPriorityException.Reason failure, readFailure, setFailure;
         Fake(ProcessPriority value) { this.value = value; }
-        public ProcessIdentity identify(long id) { if (failure != null) throw new ProcessPriorityException(failure, "test"); return new ProcessIdentity(id, 1234, "game.exe"); }
-        public ProcessPriority read(ProcessIdentity process) { return value; }
-        public void set(ProcessIdentity process, ProcessPriority priority) { sets++; if (!(ignoreAbove && priority == ProcessPriority.ABOVE_NORMAL)) value = priority; }
+        public ProcessIdentity identify(long id) {
+            if (failure != null) throw new ProcessPriorityException(failure, "test");
+            return new ProcessIdentity(id, same ? 1234 : 9999, "game.exe");
+        }
+        public ProcessPriority read(ProcessIdentity process) {
+            if (readFailure != null) throw new ProcessPriorityException(readFailure, "test");
+            return value;
+        }
+        public void set(ProcessIdentity process, ProcessPriority priority) {
+            if (setFailure != null) throw new ProcessPriorityException(setFailure, "test");
+            sets++;
+            if (!(ignoreAbove && priority == ProcessPriority.ABOVE_NORMAL)) value = priority;
+        }
         public boolean isSameProcess(ProcessIdentity process) { return same; }
     }
 }

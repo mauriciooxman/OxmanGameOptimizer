@@ -30,8 +30,8 @@ public final class SystemOptimizationAssessmentService {
                         : power.status() == AssessmentStatus.OPTIMIZED ? Severity.OK : Severity.UNKNOWN,
                 power.status(), power.detail(), power.status() == AssessmentStatus.ACTION_AVAILABLE ? "Activar High Performance temporalmente" : "Sin cambios",
                 EstimatedImpact.UNKNOWN));
-        items.add(new OptimizationAssessmentItem("process-priority", "Process Priority", AssessmentStatus.NOT_APPLICABLE,
-                OptimizationSafety.EXPERIMENTAL, "Sólo experimento avanzado; nunca se promueve al BOOST."));
+        items.add(new OptimizationAssessmentItem("process-priority-high", "Process Priority", AssessmentStatus.NOT_APPLICABLE,
+                OptimizationSafety.SAFE, "BOOST aplica HIGH sólo después de identificar y verificar el proceso real del juego."));
         AssessmentStatus gameStatus = AssessmentStatus.NOT_APPLICABLE;
         String gameDetail = "Juego no identificado de forma única; no se modifica su proceso.";
         if (game != null && qos != null) {

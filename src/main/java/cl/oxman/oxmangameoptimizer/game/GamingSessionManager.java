@@ -6,6 +6,7 @@ import cl.oxman.oxmangameoptimizer.ui.ClientSessionStatus;
 import cl.oxman.oxmangameoptimizer.ui.LogManager;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public final class GamingSessionManager {
@@ -61,7 +62,7 @@ public final class GamingSessionManager {
         OptimizationReport report = BoostOptimizer.applyBoost(profile);
         if (!SESSION_ACTIVE.get() || RESTORING.get()) return;
         statusCallback.accept(ClientSessionStatus.afterOptimization(report));
-        if (report.failed() > 0) { restore(statusCallback); return; }
+        if (report.hasCriticalFailure()) { restore(statusCallback); return; }
 
         statusCallback.accept(ClientSessionStatus.starting(profile.toString()));
         LogManager.addClientLog("Abriendo " + profile + "...");
@@ -82,8 +83,10 @@ public final class GamingSessionManager {
             return;
         }
 
-        LogManager.addClientLog(profile + " detectado. El sistema está listo para jugar.");
-        statusCallback.accept(ClientSessionStatus.running(profile.toString()));
+        LogManager.addClientLog(profile + " detectado. Verificando prioridad HIGH...");
+        OptimizationReport priorityReport = BoostOptimizer.applyGamePriority(profile);
+        LogManager.addClientLog(profile + " listo. Las optimizaciones disponibles permanecen activas durante la sesión.");
+        statusCallback.accept(ClientSessionStatus.running(profile.toString(), priorityReport));
 
         while (SESSION_ACTIVE.get() && profile.isRunning()) {
             if (!sleepSeconds(3)) {
@@ -132,6 +135,10 @@ public final class GamingSessionManager {
 
     public static boolean recoverIncompleteSession() {
         return BoostOptimizer.recoverIncompleteSession();
+    }
+
+    public static CompletableFuture<Boolean> recoverIncompleteSessionAsync() {
+        return BoostOptimizer.recoverIncompleteSessionAsync();
     }
 
     private static boolean sleepSeconds(int seconds) {

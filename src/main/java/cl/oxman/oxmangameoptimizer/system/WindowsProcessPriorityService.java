@@ -40,13 +40,17 @@ public final class WindowsProcessPriorityService implements ProcessPriorityContr
     }
 
     @Override public void set(ProcessIdentity process, ProcessPriority priority) {
-        if (priority == ProcessPriority.HIGH || priority == ProcessPriority.REALTIME)
-            throw new IllegalArgumentException("Oxman nunca escribe HIGH ni REALTIME");
+        validateTarget(priority);
         HANDLE handle = verifiedOpen(process, QUERY_LIMITED_INFORMATION | SET_INFORMATION);
         try {
             if (!Kernel32.INSTANCE.SetPriorityClass(handle, new DWORD(priority.windowsValue())))
                 throw nativeFailure("SetPriorityClass");
         } finally { Kernel32.INSTANCE.CloseHandle(handle); }
+    }
+
+    static void validateTarget(ProcessPriority priority) {
+        if (priority == ProcessPriority.REALTIME)
+            throw new IllegalArgumentException("Oxman nunca escribe REALTIME");
     }
 
     @Override public boolean isSameProcess(ProcessIdentity process) {

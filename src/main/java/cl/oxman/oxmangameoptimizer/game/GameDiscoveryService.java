@@ -56,13 +56,13 @@ public final class GameDiscoveryService {
         return result;
     }
 
-    private Optional<GameProfile> parseSteam(Path manifest, Path common) {
+    Optional<GameProfile> parseSteam(Path manifest, Path common) {
         try {
             Map<String, String> values = pairs(Files.readString(manifest, StandardCharsets.UTF_8), VDF);
             String id = values.get("appid"), name = values.get("name"), directory = values.get("installdir");
             if (id == null || name == null || directory == null
                     || !Files.isDirectory(common.resolve(directory))) return Optional.empty();
-            if ("730".equals(id)) return Optional.of(GameProfile.COUNTER_STRIKE_2);
+            if ("730".equals(id)) return Optional.of(GameProfile.counterStrike2(common.resolve(directory)));
             return Optional.of(GameProfile.installed("steam:" + id, name, common.resolve(directory),
                     "steam://rungameid/" + id));
         } catch (IOException ignored) { return Optional.empty(); }
